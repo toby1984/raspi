@@ -1,3 +1,3 @@
 #!/bin/bash
 rm bin/* -rf
-( cd bin ; cmake .. )
+( cd bin && cmake .. && make )

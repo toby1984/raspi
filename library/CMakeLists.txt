@@ -1,11 +1,17 @@
 cmake_minimum_required(VERSION 3.5.1)
 project(mylib VERSION 1.0.1 LANGUAGES C)
 include(GNUInstallDirs)
-add_library(mylib SHARED src/mylib.c)
+
+include_directories(ui/src input/src render/src)
+add_subdirectory(input)
+add_subdirectory(render)
+add_subdirectory(ui)
+
+add_library(mylib SHARED src/mylib.c $<TARGET_OBJECTS:ui> $<TARGET_OBJECTS:input> $<TARGET_OBJECTS:render>)
 set_target_properties(mylib PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION 1
-    PUBLIC_HEADER api/mylib.h)
+    PUBLIC_HEADER src/mylib.h)
 configure_file(mylib.pc.in mylib.pc @ONLY)
 target_include_directories(mylib PRIVATE .)
 install(TARGETS mylib
