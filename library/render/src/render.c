@@ -69,9 +69,9 @@ int init_render()
     return 0;
   }
   
-  viewportInfo.width = vInfo->current_w;
-  viewportInfo.height = vInfo->current_h;
-  viewportInfo.bitsPerPixel = vInfo->vfmt->BitsPerPixel;
+  viewportInfo.width = 320; // vInfo->current_w;
+  viewportInfo.height = 240; // vInfo->current_h;
+  viewportInfo.bitsPerPixel = 16; // vInfo->vfmt->BitsPerPixel;
 
   // Configure the video mode
   // - SDL_SWSURFACE appears to be most robust mode
@@ -95,7 +95,7 @@ int init_render()
   
   initFlags |= RENDER_FLAG_TTF_INIT;  
 
-  TTF_Font* font = TTF_OpenFont(FONT_PATH, 32);
+  font = TTF_OpenFont(FONT_PATH, 32);
   if ( ! font ) {
     fprintf(stderr,"Failed to load TTF font %s. %s\n",FONT_PATH,TTF_GetError());
     close_render();
@@ -127,4 +127,5 @@ void close_render()
   if ( initFlags & RENDER_FLAG_SDL_INIT ) {
     SDL_Quit();
   }
+  initFlags = 0;
 }

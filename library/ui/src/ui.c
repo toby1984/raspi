@@ -33,6 +33,8 @@ int run_test()
   render_text("TEST",50,50,color);
 
   refresh();
+
+  SDL_Delay(3000);
   
   close_render();
   
