@@ -17,6 +17,10 @@ typedef struct viewport_desc {
   int bitsPerPixel;
 } viewport_desc;
 
+typedef void (*RenderCallback)(void*);
+
+extern int exec_on_thread(RenderCallback *callback);
+
 extern SDL_Surface* scrMain;
 
 extern int get_viewport_desc(viewport_desc *port);
@@ -24,8 +28,6 @@ extern int get_viewport_desc(viewport_desc *port);
 extern int init_render();
 
 extern void close_render();
-
-extern void refresh();
 
 extern void render_text(const char *text,int x,int y,SDL_Color color);
 

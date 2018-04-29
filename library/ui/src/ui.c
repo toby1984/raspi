@@ -32,7 +32,34 @@ int run_test()
   SDL_Color color = {255, 255, 255};
   render_text("TEST",50,50,color);
 
-  refresh();
+  for( int frames = 0 ; frames < 30 * 10 ; frames++ ) 
+  {
+  
+    SDL_Event test_event;
+    while (SDL_PollEvent(&test_event)) 
+    {
+      switch (test_event.type) 
+      {
+        case SDL_MOUSEBUTTONDOWN:
+          printf("We got a mouse down.\n");
+          printf("Button %d, Current mouse position is: (%d, %d)\n", test_event.button.button, test_event.button.x, test_event.button.y);             
+          break;          
+        case SDL_MOUSEBUTTONUP:
+          printf("We got a mouse up.\n");
+          printf("Button %d, Current mouse position is: (%d, %d)\n", test_event.button.button, test_event.button.x, test_event.button.y);          
+          break;
+        case SDL_MOUSEMOTION:
+          printf("We got a motion event.\n");
+          printf("Current mouse position is: (%d, %d)\n", test_event.motion.x, test_event.motion.y);
+          break;
+        default:
+          printf("Unhandled Event!\n");
+          break;
+      }
+    }    
+    SDL_Delay(32);      
+  }
+
 
   SDL_Delay(3000);
   

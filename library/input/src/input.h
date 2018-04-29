@@ -1,20 +1,17 @@
 #ifndef INPUT_H
 #define INPUT_H
 
-#define USE_MOUSE
-
-enum TouchEventType { CLICK, DRAG };
-
 typedef struct TouchEvent {
-  int x;
-  int y;
-  int type; // TouchEventType
+        int             x;
+        int             y;
+        unsigned int    pressure;
+        struct timeval  tv;
 } TouchEvent;
 
-extern int init_input();
+extern int init_touch();
 
-extern void close_input();
+extern int poll_touch(TouchEvent *event);
 
-extern int read_events(TouchEvent *buffer,int bufferSize);
+extern void close_touch();
 
 #endif
