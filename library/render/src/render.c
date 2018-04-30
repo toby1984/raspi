@@ -6,7 +6,6 @@
 #include "SDL/SDL_getenv.h"
 #include <pthread.h>
 
-// #define USE_FB
 SDL_Surface* scrMain = NULL;
 
 TTF_Font* font;
@@ -268,11 +267,13 @@ int init_render_internal()
 #endif
 
   // Initialize SDL
+  fprintf(stdout,"Calling SDL_Init()s\n");  
   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
     fprintf(stderr,"ERROR in SDL_Init(): %s\n",SDL_GetError());
     close_render();
     return 0;
   }
+  fprintf(stdout,"SDL_Init() returned\n");  
   initFlags |= RENDER_FLAG_SDL_INIT;
 
   // Fetch the best video mode
@@ -326,12 +327,16 @@ void *main_event_loop(void* data)
 {
     fprintf(stderr,"Rendering thread starting...\n");  
     
-    pthread_mutex_lock(&init_mutex);
-    
     initResult = init_render_internal();
-    
+
+    pthread_mutex_lock(&init_mutex);    
     pthread_cond_signal(&init_condition);
     pthread_mutex_unlock(&init_mutex);  
+    
+    if ( ! initResult ) {
+      fprintf(stderr,"init_render_internal() failed\n");        
+      return 0;
+    }
     
     fprintf(stdout,"Initializing rendering on separate thread DONE...\n");      
     
@@ -358,6 +363,7 @@ void *main_event_loop(void* data)
       SDL_Delay(200);        
     }
     fprintf(stdout,"Rendering thread terminated.\n");      
+    return 0;
 }
 
 int init_render() 
@@ -370,22 +376,19 @@ int init_render()
   
   pthread_attr_t tattr;
   
-  pthread_attr_init(&tattr);
-  pthread_attr_setdetachstate(&tattr,PTHREAD_CREATE_DETACHED);  
-  
-  int err = pthread_create(&renderingThreadId, &tattr, &main_event_loop, NULL); 
+  int err = pthread_create(&renderingThreadId, NULL, &main_event_loop, NULL); 
   if ( err != 0 ) {
     fprintf(stderr,"ERROR - failed to spawn rendering thread\n");
     return 0;  
   }
   
   fprintf(stdout,"Waiting for init_render()...\n");
-  fflush(stdout);
   
   wait_condition(&init_mutex,&init_condition);
+  
   fprintf(stdout,"init_render() returned %d\n",initResult);
   
-    fprintf(stdout,"init_render() returns %d\n",initResult);  
+  fprintf(stdout,"init_render() returns %d\n",initResult);  
   return initResult;
 }
 
