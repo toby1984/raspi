@@ -13,11 +13,18 @@ int initFlags = 0;
 viewport_desc viewportInfo;
 
 // rendering thread init stuff
-volatile pthread_cond_t init_condition;
-volatile pthread_t renderingThreadId;
-volatile pthread_cond_t init_condition = PTHREAD_COND_INITIALIZER;
-volatile pthread_mutex_t init_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t init_condition;
+pthread_t renderingThreadId;
+pthread_cond_t init_condition = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t init_mutex = PTHREAD_MUTEX_INITIALIZER;
 volatile int initResult = 0;
+
+typedef struct render_text_args {
+  const char *text;
+  int x;
+  int y;
+  SDL_Color color;
+} render_text_args;
 
 // mailbox
 
@@ -25,9 +32,9 @@ pthread_mutex_t mbox_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct mbox_entry 
 {
-  mbox_entry *next;
-  mbox_entry *prev;
-  RenderCallback *func;
+  struct mbox_entry *next;
+  struct mbox_entry *prev;
+  RenderCallback func;
   pthread_cond_t *finished_condition;
   pthread_mutex_t *finished_mutex;  
   void *data;
@@ -46,10 +53,10 @@ mbox_entry *mbox_last = NULL;
 #define signal_condition(mutex,condition) \
     pthread_mutex_lock(mutex); \
     pthread_cond_signal(condition); \
-    pthread_mutex_unlock(mutext);  
+    pthread_mutex_unlock(mutex);  
     
 #define init_condition(mutex,condition) \
-      pthread_mutex_init(mutext, NULL); \
+      pthread_mutex_init(mutex, NULL); \
       pthread_cond_init(condition,NULL);    
 
 int is_on_rendering_thread() {
@@ -58,7 +65,7 @@ int is_on_rendering_thread() {
 
 void assert_rendering_thread() {
   if ( ! is_on_rendering_thread() ) {
-    fprintf("Not on rendering thread!\n");  
+    fprintf(stderr,"Not on rendering thread!\n");  
   }
 }
 
@@ -66,23 +73,28 @@ void assert_rendering_thread() {
  * Execute callback on rendering thread.
  * 
  * @param callback Callback to invoke from rendering thread.
+ * @param data data passed to callback
+ * @param awaitCompletion whether to block until the callback has been invoked
  * 
  * @return 
  */
-int exec_on_thread(RenderCallback *callback,void *data,int awaitCompletion) 
+int exec_on_thread(RenderCallback callback,void *data,int awaitCompletion) 
 {
+    fprintf(stdout,"exec_on_thread() called");   
     if ( is_on_rendering_thread() ) {
-      fprintf("Warning - exec_on_thread() called while on rendering thread\n");        
+      fprintf(stderr,"Warning - exec_on_thread() called while on rendering thread\n");        
       callback(data);
-      return 0;
+      return 1;
     }
     
-    mbox_entry *newEntry = calloc(1,sizeof(mbox_entry);
+    // allocate memory for mail box entry
+    mbox_entry *newEntry = calloc(1,sizeof(mbox_entry));
     if ( newEntry == NULL ) {
       return 0;  
     }
     newEntry->data = data;
-  
+
+    // insert 
     pthread_mutex_lock(&mbox_mutex);
     
     if ( mbox_first == NULL ) 
@@ -120,6 +132,11 @@ int exec_on_thread(RenderCallback *callback,void *data,int awaitCompletion)
     return 1;
 }
 
+/**
+ * Poll mailbox.
+ * 
+ * @return mbox entry or NULL
+ */
 mbox_entry *poll() 
 {
   pthread_mutex_lock(&mbox_mutex);
@@ -132,6 +149,7 @@ mbox_entry *poll()
       mbox_last = NULL;
     } else {
       mbox_last = entry->prev;
+      mbox_last->next=NULL;
     }
   }  
   pthread_mutex_unlock(&mbox_mutex); 
@@ -139,12 +157,25 @@ mbox_entry *poll()
   return entry;
 }
 
-
-int is_initialized() {
-  return initFlags == RENDER_FLAG_SDL_INIT | RENDER_FLAG_TTF_INIT | RENDER_FLAG_TTF_FONT_LOADED;
+/**
+ * Returns whether the rendering system was initialized.
+ * @return 
+ */
+int is_initialized() 
+{
+  if ( initFlags == (RENDER_FLAG_SDL_INIT | RENDER_FLAG_TTF_INIT | RENDER_FLAG_TTF_FONT_LOADED) ) {
+    return 1;
+  }
+  return 0;
 }
 
-int get_viewport_desc(viewport_desc *port) {
+/**
+ * Fills out a viewport description
+ * @return 
+ */
+int get_viewport_desc_internal(viewport_desc *port) 
+{
+  fprintf(stdout,"get_viewport_desc_internal() called");   
   if ( is_initialized ) 
   {
     port->width = viewportInfo.width;
@@ -155,9 +186,20 @@ int get_viewport_desc(viewport_desc *port) {
   return 0;  
 }
 
+/**
+ * Fills out a viewport description
+ * @return 
+ */
+int get_viewport_desc(viewport_desc *port) 
+{
+  fprintf(stdout,"get_viewport_desc() called");  
+  return exec_on_thread(&get_viewport_desc_internal,port,1); 
+}
+
 void close_render_internal(void *dummy) 
 {
-    // close font
+  fprintf(stdout,"close_render_internal() called");
+  // close font
   if ( initFlags & RENDER_FLAG_TTF_FONT_LOADED) {
     TTF_CloseFont(font);
   }
@@ -174,14 +216,7 @@ void close_render_internal(void *dummy)
   initFlags = 0;
 }
 
-typedef struct render_text_args {
-  const char *text;
-  int x;
-  int y;
-  SDL_Color color;
-} render_text_args;
-
-void free(render_text_args *args) {
+void free_render_text_args(render_text_args *args) {
   free(args->text);
   free(args);
 }
@@ -195,7 +230,7 @@ void render_text_internal(render_text_args *args)
   
   SDL_FreeSurface(textSurface);
   
-  free(args);
+  free_render_text_args(args);
 }  
 
 void render_text(const char *text,int x,int y,SDL_Color color) 
@@ -207,11 +242,12 @@ void render_text(const char *text,int x,int y,SDL_Color color)
   args->y=y;
   memcpy(&args->color,&color,sizeof(SDL_Color));
   
-  exec_on_thread( &render_text_internal, args );
+  exec_on_thread( &render_text_internal, args,0);
 }
 
-int init_render_internal(void *dummy) 
+int init_render_internal() 
 {
+  fprintf(stdout,"init_render_internal() called \n");
   // --------------------------------------
   // Initialization
   // --------------------------------------
@@ -279,9 +315,9 @@ int init_render_internal(void *dummy)
   return 1;
 }
 
-void init_render_on_thread() 
+void *main_event_loop(void* data) 
 {
-    fprintf(stdout,"Rendering thread starting...\n");  
+    fprintf(stderr,"Rendering thread starting...\n");  
     
     pthread_mutex_lock(&init_mutex);
     
@@ -298,9 +334,9 @@ void init_render_on_thread()
       mbox_entry *entry = NULL;
       while ( ! terminate && ( entry = poll() ) ) 
       {
-          if ( entry == &close_render_internal) {
+          if ( entry->func == &close_render_internal) {
             fprintf(stdout,"Rendering thread shutting down...\n");              
-            terminate = true;  
+            terminate = 1;  
           }
           entry->func(entry->data);
           
@@ -319,25 +355,35 @@ void init_render_on_thread()
 
 int init_render() 
 {
+  fprintf(stdout,"init_render() called.\n");  
+  if ( is_initialized() ) {
+    return 1;
+  }
   initResult = 0;
   
-  int err = pthread_create(&renderingThreadId, NULL, &init_render_on_thread, NULL); 
+  pthread_attr_t tattr;
+  
+  pthread_attr_init(&tattr);
+  pthread_attr_setdetachstate(&tattr,PTHREAD_CREATE_DETACHED);  
+  
+  int err = pthread_create(&renderingThreadId, &tattr, &main_event_loop, NULL); 
   if ( err != 0 ) {
     fprintf(stderr,"ERROR - failed to spawn rendering thread\n");
     return 0;  
   }
   
   fprintf(stdout,"Waiting for init_render()...\n");
-  pthread_mutex_lock(&init_mutex);
-  pthread_cond_wait(&init_condition, &init_mutex);
-  pthread_mutex_unlock(&init_mutex);  
+  fflush(stdout);
+  
+  wait_condition(&init_mutex,&init_condition);
   fprintf(stdout,"init_render() returned %d\n",initResult);
   
+    fprintf(stdout,"init_render() returns %d\n",initResult);  
   return initResult;
 }
 
 void close_render() 
 {
-  exec_on_thread( &close_render_internal );
-  initFlags = 0;
+  fprintf(stdout,"close_render() called");
+  exec_on_thread( &close_render_internal, NULL, 1);
 }

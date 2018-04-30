@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.5.1)
 project(raspi)
+set(CMAKE_BUILD_TYPE Debug)
 set( CMAKE_VERBOSE_MAKEFILE on )
 add_subdirectory(library)
 add_subdirectory(test)

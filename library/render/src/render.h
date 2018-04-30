@@ -7,6 +7,8 @@
 
 #define FONT_PATH "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
 
+// #define USE_FB
+
 #define RENDER_FLAG_SDL_INIT 1<<0
 #define RENDER_FLAG_TTF_INIT 1<<1
 #define RENDER_FLAG_TTF_FONT_LOADED 1<<2
@@ -19,7 +21,7 @@ typedef struct viewport_desc {
 
 typedef void (*RenderCallback)(void*);
 
-extern int exec_on_thread(RenderCallback *callback);
+extern int exec_on_thread(RenderCallback callback,void *data,int awaitCompletion);
 
 extern SDL_Surface* scrMain;
 

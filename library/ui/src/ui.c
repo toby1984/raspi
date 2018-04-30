@@ -3,12 +3,8 @@
 #include "SDL/SDL.h"
 #include "SDL/SDL_ttf.h"
 
-int run_test() 
+void run_test_internal(void* data) 
 {
-  if ( ! init_render() ) {
-    return 0;  
-  }
-  
   viewport_desc desc;
   get_viewport_desc(&desc);
   
@@ -59,11 +55,21 @@ int run_test()
     }    
     SDL_Delay(32);      
   }
-
-
   SDL_Delay(3000);
+}
+
+int run_test() 
+{
+  if ( ! init_render() ) {
+    return 0;  
+  }
   
-  close_render();
+  fprintf(stdout,"Now calling run_test_internal()...\n");
+  exec_on_thread(&run_test_internal,NULL,1);
+  
+  fprintf(stdout,"Now calling close_render()...\n");
+  
+  close_render();  
   
   return 1;
 }
