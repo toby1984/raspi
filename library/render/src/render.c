@@ -8,15 +8,22 @@
 
 // #define USE_FB
 SDL_Surface* scrMain = NULL;
+
 TTF_Font* font;
+
 int initFlags = 0;
+
 viewport_desc viewportInfo;
 
 // rendering thread init stuff
 pthread_cond_t init_condition;
+
 pthread_t renderingThreadId;
+
 pthread_cond_t init_condition = PTHREAD_COND_INITIALIZER;
+
 pthread_mutex_t init_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 volatile int initResult = 0;
 
 typedef struct render_text_args {
