@@ -32,5 +32,7 @@ void close_render();
 
 void render_text(const char *text,int x,int y,SDL_Color color);
 
+void sdl_init_test2();
+
 #endif
 

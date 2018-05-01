@@ -1,5 +1,6 @@
 #include "ui.h"
 #include "render.h"
+#define SDL_MAIN_HANDLED
 #include "SDL/SDL.h"
 #include "SDL/SDL_ttf.h"
 

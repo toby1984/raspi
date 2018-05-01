@@ -1,7 +1,4 @@
-
-
 #include "render.h"
-#define SDL_MAIN_HANDLED
 #include "SDL/SDL.h"
 #include "SDL/SDL_ttf.h"
 #include "SDL/SDL_getenv.h"
@@ -388,4 +385,13 @@ void close_render()
 {
   fprintf(stdout,"close_render() called");
   exec_on_thread( &close_render_internal, NULL, 1);
+}
+
+void sdl_init_test2() {
+   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+    fprintf(stderr,"ERROR in SDL_Init(): %s\n",SDL_GetError());
+    return;
+  }
+  SDL_Quit();
+  fprintf(stdout,"SDL_Init() success\n");
 }
