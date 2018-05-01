@@ -2,8 +2,6 @@
 #ifndef RENDER_H
 #define RENDER_H
 #include "SDL/SDL.h"
-#include "SDL/SDL_ttf.h"
-#include "SDL/SDL_getenv.h"
 
 #define FONT_PATH "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
 
@@ -21,17 +19,17 @@ typedef struct viewport_desc {
 
 typedef void (*RenderCallback)(void*);
 
-extern int exec_on_thread(RenderCallback callback,void *data,int awaitCompletion);
+int exec_on_thread(RenderCallback callback,void *data,int awaitCompletion);
 
-extern SDL_Surface* scrMain;
+SDL_Surface* scrMain;
 
-extern int get_viewport_desc(viewport_desc *port);
+int get_viewport_desc(viewport_desc *port);
 
-extern int init_render();
+int init_render();
 
-extern void close_render();
+void close_render();
 
-extern void render_text(const char *text,int x,int y,SDL_Color color);
+void render_text(const char *text,int x,int y,SDL_Color color);
 
 #endif
 

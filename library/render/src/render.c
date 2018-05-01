@@ -17,7 +17,7 @@ viewport_desc viewportInfo;
 // rendering thread init stuff
 pthread_cond_t init_condition;
 
-pthread_t renderingThreadId;
+volatile pthread_t renderingThreadId;
 
 pthread_cond_t init_condition = PTHREAD_COND_INITIALIZER;
 
@@ -66,7 +66,7 @@ mbox_entry *mbox_last = NULL;
       pthread_cond_init(condition,NULL);    
 
 int is_on_rendering_thread() {
-  return renderingThreadId == pthread_self();
+  return pthread_equal(renderingThreadId,pthread_self());
 }
 
 void assert_rendering_thread() {
@@ -268,7 +268,8 @@ int init_render_internal()
 
   // Initialize SDL
   fprintf(stdout,"Calling SDL_Init()s\n");  
-  if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+  // if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+  if (SDL_InitSubSystem(SDL_INIT_VIDEO) < 0) {
     fprintf(stderr,"ERROR in SDL_Init(): %s\n",SDL_GetError());
     close_render();
     return 0;
@@ -382,7 +383,7 @@ int init_render()
     return 0;  
   }
   
-  fprintf(stdout,"Waiting for init_render()...\n");
+  fprintf(stdout,"Waiting for init_render_internal()...\n");
   
   wait_condition(&init_mutex,&init_condition);
   

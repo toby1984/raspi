@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.5.1)
 project(raspi)
-link_directories(/home/tobi/qtcreator/sdl1.2-debug)
+# link_directories(/home/tobi/qtcreator/sdl1.2-debug/lib /home/tobi/qtcreator/sdl_ttf/lib)
+# include_directories(/home/tobi/qtcreator/sdl1.2-debug/include/SDL /home/tobi/qtcreator/sdl_ttf/include/SDL)
 set(CMAKE_BUILD_TYPE Debug)
 set( CMAKE_VERBOSE_MAKEFILE on )
 add_subdirectory(library)
