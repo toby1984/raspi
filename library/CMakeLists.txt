@@ -2,13 +2,8 @@ cmake_minimum_required(VERSION 3.5.1)
 project(mylib VERSION 1.0.1 LANGUAGES C)
 include(GNUInstallDirs)
 
-include_directories(ui/src input/src render/src)
-add_subdirectory(input)
-add_subdirectory(render)
-add_subdirectory(ui)
-
 # add_library(mylib SHARED src/mylib.c $<TARGET_OBJECTS:ui> $<TARGET_OBJECTS:input> $<TARGET_OBJECTS:render>)
-add_library(mylib SHARED src/mylib.c $<TARGET_OBJECTS:ui> $<TARGET_OBJECTS:input> $<TARGET_OBJECTS:render>)
+add_library(mylib SHARED src/mylib.c src/input.c src/render.c  src/ui.c)
 
 target_link_libraries(mylib SDL SDL_ttf pthread)
 
