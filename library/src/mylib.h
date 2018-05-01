@@ -1,6 +1,8 @@
 #ifndef MYLIB_H
 #define MYLIB_H
 
-extern int do_test();
+int do_test();
+
+int do_test2();
 
 #endif

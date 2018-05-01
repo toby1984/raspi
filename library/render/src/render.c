@@ -1,6 +1,7 @@
 
 
 #include "render.h"
+#define SDL_MAIN_HANDLED
 #include "SDL/SDL.h"
 #include "SDL/SDL_ttf.h"
 #include "SDL/SDL_getenv.h"
@@ -8,19 +9,16 @@
 
 SDL_Surface* scrMain = NULL;
 
-TTF_Font* font;
+TTF_Font* font = NULL;
 
 int initFlags = 0;
 
-viewport_desc viewportInfo;
-
-// rendering thread init stuff
-pthread_cond_t init_condition;
+viewport_desc viewportInfo = {0};
 
 volatile pthread_t renderingThreadId;
 
+// rendering thread init stuff
 pthread_cond_t init_condition = PTHREAD_COND_INITIALIZER;
-
 pthread_mutex_t init_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 volatile int initResult = 0;
@@ -258,18 +256,17 @@ int init_render_internal()
   // Initialization
   // --------------------------------------
 
-#ifdef USE_FB
-  // Update the environment variables for SDL to
-  // work correctly with the external display on
-  // LINUX frame buffer 1 (fb1).
-  putenv((char*)"FRAMEBUFFER=/dev/fb1");
-  putenv((char*)"SDL_FBDEV=/dev/fb1");
-#endif
+// #ifdef USE_FB
+//  // Update the environment variables for SDL to
+//  // work correctly with the external display on
+//  // LINUX frame buffer 1 (fb1).
+//  putenv((char*)"FRAMEBUFFER=/dev/fb1");
+//  putenv((char*)"SDL_FBDEV=/dev/fb1");
+// #endif
 
   // Initialize SDL
   fprintf(stdout,"Calling SDL_Init()s\n");  
-  // if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-  if (SDL_InitSubSystem(SDL_INIT_VIDEO) < 0) {
+  if (SDL_Init(SDL_INIT_VIDEO) < 0) {
     fprintf(stderr,"ERROR in SDL_Init(): %s\n",SDL_GetError());
     close_render();
     return 0;
@@ -326,13 +323,9 @@ int init_render_internal()
 
 void *main_event_loop(void* data) 
 {
-    fprintf(stderr,"Rendering thread starting...\n");  
-    
     initResult = init_render_internal();
 
-    pthread_mutex_lock(&init_mutex);    
-    pthread_cond_signal(&init_condition);
-    pthread_mutex_unlock(&init_mutex);  
+    signal_condition(&init_mutex,&init_condition);
     
     if ( ! initResult ) {
       fprintf(stderr,"init_render_internal() failed\n");        
@@ -374,8 +367,6 @@ int init_render()
     return 1;
   }
   initResult = 0;
-  
-  pthread_attr_t tattr;
   
   int err = pthread_create(&renderingThreadId, NULL, &main_event_loop, NULL); 
   if ( err != 0 ) {

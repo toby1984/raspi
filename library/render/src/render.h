@@ -1,6 +1,7 @@
 
 #ifndef RENDER_H
 #define RENDER_H
+#define SDL_MAIN_HANDLED
 #include "SDL/SDL.h"
 
 #define FONT_PATH "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"

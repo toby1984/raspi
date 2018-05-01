@@ -7,9 +7,10 @@ add_subdirectory(input)
 add_subdirectory(render)
 add_subdirectory(ui)
 
+# add_library(mylib SHARED src/mylib.c $<TARGET_OBJECTS:ui> $<TARGET_OBJECTS:input> $<TARGET_OBJECTS:render>)
 add_library(mylib SHARED src/mylib.c $<TARGET_OBJECTS:ui> $<TARGET_OBJECTS:input> $<TARGET_OBJECTS:render>)
 
-target_link_libraries(mylib SDL SDL_ttf)
+target_link_libraries(mylib SDL SDL_ttf pthread)
 
 set_target_properties(mylib PROPERTIES
     VERSION ${PROJECT_VERSION}
