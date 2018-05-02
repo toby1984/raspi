@@ -93,6 +93,7 @@ int exec_on_thread(RenderCallback callback,void *data,int awaitCompletion)
     if ( newEntry == NULL ) {
       return 0;  
     }
+    newEntry->func = callback;
     newEntry->data = data;
 
     // insert 
@@ -138,7 +139,7 @@ int exec_on_thread(RenderCallback callback,void *data,int awaitCompletion)
  * 
  * @return mbox entry or NULL
  */
-mbox_entry *poll() 
+mbox_entry *poll_mbox() 
 {
   pthread_mutex_lock(&mbox_mutex);
   
@@ -253,13 +254,13 @@ int init_render_internal()
   // Initialization
   // --------------------------------------
 
-// #ifdef USE_FB
-//  // Update the environment variables for SDL to
-//  // work correctly with the external display on
-//  // LINUX frame buffer 1 (fb1).
-//  putenv((char*)"FRAMEBUFFER=/dev/fb1");
-//  putenv((char*)"SDL_FBDEV=/dev/fb1");
-// #endif
+#ifdef USE_FB
+ // Update the environment variables for SDL to
+ // work correctly with the external display on
+ // LINUX frame buffer 1 (fb1).
+ putenv((char*)"FRAMEBUFFER=/dev/fb1");
+ putenv((char*)"SDL_FBDEV=/dev/fb1");
+#endif
 
   // Initialize SDL
   fprintf(stdout,"Calling SDL_Init()s\n");  
@@ -335,7 +336,7 @@ void *main_event_loop(void* data)
     while ( ! terminate ) 
     {
       mbox_entry *entry = NULL;
-      while ( ! terminate && ( entry = poll() ) ) 
+      while ( ! terminate && ( entry = poll_mbox() ) ) 
       {
           if ( entry->func == &close_render_internal) {
             fprintf(stdout,"Rendering thread shutting down...\n");              
@@ -346,12 +347,13 @@ void *main_event_loop(void* data)
           if ( entry->finished_mutex ) 
           {
             signal_condition(entry->finished_mutex,entry->finished_condition);            
-          }
-          
+          }          
           free(entry);
-      }      
-      SDL_Flip(scrMain);       
-      SDL_Delay(200);        
+      }           
+      if ( ! terminate ) {
+        SDL_Flip(scrMain);       
+        SDL_Delay(200);        
+      }
     }
     fprintf(stdout,"Rendering thread terminated.\n");      
     return 0;
@@ -385,13 +387,4 @@ void close_render()
 {
   fprintf(stdout,"close_render() called");
   exec_on_thread( &close_render_internal, NULL, 1);
-}
-
-void sdl_init_test2() {
-   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-    fprintf(stderr,"ERROR in SDL_Init(): %s\n",SDL_GetError());
-    return;
-  }
-  SDL_Quit();
-  fprintf(stdout,"SDL_Init() success\n");
 }

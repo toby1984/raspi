@@ -1,8 +1,8 @@
 #include "ui.h"
 #include "render.h"
-#define SDL_MAIN_HANDLED
 #include "SDL/SDL.h"
 #include "SDL/SDL_ttf.h"
+#include <stdio.h>
 
 void run_test_internal(void* data) 
 {
@@ -56,7 +56,6 @@ void run_test_internal(void* data)
     }    
     SDL_Delay(32);      
   }
-  SDL_Delay(3000);
 }
 
 int run_test() 
