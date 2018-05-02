@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.5.1)
 project(raspi)
+
+set(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -Wall -Wno-discarded-qualifiers")
+
 link_directories(/home/tobi/qtcreator/sdl1.2-debug/lib /home/tobi/qtcreator/sdl_ttf/lib)
 include_directories(/home/tobi/qtcreator/sdl1.2-debug/include /home/tobi/qtcreator/sdl_ttf/include /home/tobi/qtcreator/sdl1.2-debug/include/SDL)
 set(CMAKE_BUILD_TYPE Debug)

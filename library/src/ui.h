@@ -1,6 +1,6 @@
 #ifndef UI_H
 #define UI_H
 
-int run_test();
+int ui_run_test();
 
 #endif

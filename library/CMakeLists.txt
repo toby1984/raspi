@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5.1)
 project(mylib VERSION 1.0.1 LANGUAGES C)
 include(GNUInstallDirs)
 
-add_library(mylib SHARED src/mylib.c src/input.c src/render.c  src/ui.c)
+add_library(mylib SHARED src/mylib.c src/input.c src/render.c  src/ui.c src/log.c)
 
 find_package( Threads )
 target_link_libraries(mylib SDL SDL_ttf ${CMAKE_THREAD_LIBS_INIT})

@@ -1,6 +1,10 @@
 #ifndef INPUT_H
 #define INPUT_H
 
+#include <sys/time.h>
+
+#define FAKE_TOUCHSCREEN
+
 typedef struct TouchEvent {
         int             x;
         int             y;
@@ -8,10 +12,10 @@ typedef struct TouchEvent {
         struct timeval  tv;
 } TouchEvent;
 
-extern int init_touch();
+int input_init_touch();
 
-extern int poll_touch(TouchEvent *event);
+int input_poll_touch(TouchEvent *event);
 
-extern void close_touch();
+void input_close_touch();
 
 #endif
