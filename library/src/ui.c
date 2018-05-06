@@ -6,22 +6,32 @@
 #include <stdio.h>
 #include "log.h"
 #include <unistd.h>
+#include <string.h>
 
 /*
- * typedef struct button_desc {
+ typedef struct button_desc {
     SDL_Rect bounds;
     SDL_Color borderColor;
     SDL_Color backgroundColor;
     SDL_Color textColor;
+    int fontSize;
     char *text;
 } button_desc;
  */
-int render_button(char *text,SDL_Rect bounds)  {
+int render_button(char *text,SDL_Rect *bounds)
+{
     button_desc desc;
-    desc.bounds = bounds;
-    desc.borderColor = {255,255,255,128};
-    desc.backgroundColor = {128,128,128,128};
-    desc.textColor = {255,255,255,128};
+    
+    desc.bounds = *bounds;
+    desc.borderColor.r = 255;
+    desc.borderColor.g = 255;
+    desc.borderColor.b = 255;
+    desc.backgroundColor.r = 128;
+    desc.backgroundColor.g = 128;
+    desc.backgroundColor.b = 128;
+    desc.textColor.r = 255;
+    desc.textColor.g = 255;
+    desc.textColor.b = 255;
     desc.text = text;
     
     return render_draw_button(&desc);

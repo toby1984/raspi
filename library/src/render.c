@@ -1,10 +1,11 @@
 #include "render.h"
 #include "SDL/SDL.h"
 #include "SDL/SDL_ttf.h"
-#include "SDL/SDL_gfx.h"
+#include "SDL/SDL_gfxPrimitives.h"
 #include "SDL/SDL_getenv.h"
 #include <pthread.h>
 #include "log.h"
+#include <string.h>
 #include "input.h"
 #include <stdarg.h>
 
@@ -348,7 +349,7 @@ int render_init_render_internal()
   
   initFlags |= RENDER_FLAG_TTF_INIT;  
 
-  font = TTF_OpenFont(FONT_PATH, 32);
+  font = TTF_OpenFont(FONT_PATH, FONT_SIZE);
   if ( ! font ) {
     render_error("Failed to load TTF font %s. %s",FONT_PATH,TTF_GetError());
     render_close_render();
@@ -442,51 +443,51 @@ volatile const char* render_get_error() {
  * Draws a rectangle using the given color.
  */
 int render_draw_button_internal(button_desc *button) {
- /*
-  *boxRGBA (SDL_Surface *dst, Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
- 	Draw box (filled rectangle) with blending. 
- 	
-roundedBoxRGBA (SDL_Surface *dst, Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 rad, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
- 	Draw rounded-corner box (filled rectangle) with blending.  	
- 	
-roundedRectangleColor (SDL_Surface *dst, Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 rad, Uint32 color)
- 	Draw rounded-corner rectangle with blending.  	
-  */   
  
+  fprintf(stderr,"About to render button...\n");
+    
   Sint16 x1 = button->bounds.x;
   Sint16 y1 = button->bounds.y;
   Sint16 x2 = button->bounds.x+button->bounds.w;
   Sint16 y2 = button->bounds.y+button->bounds.h;
-  roundedBoxRGBA(srcMain,x1,y1,x2,y2,
+  Sint16 rad = 5;
+  
+  roundedBoxRGBA(scrMain,x1,y1,x2,y2,rad,
                  button->backgroundColor.r,
                  button->backgroundColor.g,
                  button->backgroundColor.b,
-                 button->backgroundColor.a);
+                 128);
 
-  roundedBoxRGBA(srcMain,x1,y1,x2,y2,
+  roundedRectangleRGBA(scrMain,x1,y1,x2,y2,rad,
                  button->borderColor.r,
                  button->borderColor.g,
                  button->borderColor.b,
-                 button->borderColor.a);  
+                 128);  
   
   int textWidth;
   int textHeight;
   
   int result = TTF_SizeText(font, button->text, &textWidth, &textHeight);
-  if ( ! result ) {
-     render_error("Failed to size text");
+  if ( result != 0 ) {
+    fprintf(stderr,"Failed to size text\n");
+    render_error("Failed to size text");
     return 0;    
   }
   int textX = button->bounds.x + button->bounds.w/2 - textWidth/2;
   int textY = button->bounds.y + button->bounds.h/2 - textHeight/2;
- 
-  render_text_args text;
-  text.text = button->text;
-  text.x = textX;
-  text.y = textY;
-  text.color = button->textColor; 
   
-  render_text_internal(&text);
+  fprintf(stderr,"Rendering text at (%d,%d) with w=%d,h=%d\n",textX,textY,textWidth,textHeight);
+ 
+  render_text_args *text = malloc(sizeof(render_text_args));
+  if ( text == NULL ) {
+    return 0;    
+  }
+  text->text = strdup(button->text);
+  text->x = textX;
+  text->y = textY;
+  text->color = button->textColor; 
+  
+  render_render_text_internal(text);
   return 1;
 }
 

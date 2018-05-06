@@ -2,6 +2,10 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+enum LogLevel { ERROR=0,WARN=1,INFO=2,DEBUG=3,TRACE=4 };
+
+enum LogLevel level = INFO;
+
 void log_all(const char*level,char *msg,...) 
 {
     char buffer[1024];
@@ -19,29 +23,37 @@ void log_all(const char*level,char *msg,...)
 
 void log_info(char *msg,...) 
 {
-    va_list ap;
-    va_start(ap, msg); //Requires the last fixed parameter (to get the address)    
-    log_all("INFO",msg,ap);
-    va_end(ap);
+    if ( level >= INFO ) {
+        va_list ap;
+        va_start(ap, msg); //Requires the last fixed parameter (to get the address)    
+        log_all("INFO",msg,ap);
+        va_end(ap);
+    }
 }
 
 void log_debug(char *msg,...) {
-    va_list ap;
-    va_start(ap, msg); //Requires the last fixed parameter (to get the address)    
-    log_all("DEBUG",msg,ap);
-    va_end(ap);
+    if ( level >= DEBUG ) {
+        va_list ap;
+        va_start(ap, msg); //Requires the last fixed parameter (to get the address)    
+        log_all("DEBUG",msg,ap);
+        va_end(ap);
+    }
 }
 
 void log_warn(char *msg,...) {
-    va_list ap;
-    va_start(ap, msg); //Requires the last fixed parameter (to get the address)    
-    log_all("WARN",msg,ap);
-    va_end(ap);    
+    if ( level >= WARN ) {
+        va_list ap;
+        va_start(ap, msg); //Requires the last fixed parameter (to get the address)    
+        log_all("WARN",msg,ap);
+        va_end(ap);    
+    }
 }
 
 void log_error(char *msg,...) {
-    va_list ap;
-    va_start(ap, msg); //Requires the last fixed parameter (to get the address)    
-    log_all("ERROR",msg,ap);
-    va_end(ap);    
+    if ( level >= ERROR ) {    
+        va_list ap;
+        va_start(ap, msg); //Requires the last fixed parameter (to get the address)    
+        log_all("ERROR",msg,ap);
+        va_end(ap);    
+    }
 }

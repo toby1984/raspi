@@ -12,6 +12,8 @@
 #define RENDER_FLAG_TTF_INIT 1<<1
 #define RENDER_FLAG_TTF_FONT_LOADED 1<<2
 
+#define FONT_SIZE 16
+
 extern SDL_Surface* scrMain;
 
 typedef struct viewport_desc {
@@ -49,7 +51,7 @@ int render_has_error();
 
 volatile const char* render_get_error();
 
-void render_draw_button(button_desc *button);
+int render_draw_button(button_desc *button);
 
 #endif
 
