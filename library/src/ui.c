@@ -7,6 +7,7 @@
 #include "log.h"
 #include <unistd.h>
 #include <string.h>
+#include <pthread.h>
 
 /*
  typedef struct button_desc {
@@ -18,23 +19,132 @@
     char *text;
 } button_desc;
  */
-int render_button(char *text,SDL_Rect *bounds)
+
+typedef struct button_entry {
+  struct button_entry *next;
+  struct button_entry *prev;
+  ButtonHandler clickHandler;
+  button_desc desc;
+} button_entry;
+
+button_entry *ui_button_first=NULL;
+button_entry *ui_button_last=NULL;
+
+// button that is currently pressed down by the user
+// but not released yet
+button_entry *pressed_button = NULL;
+
+pthread_mutex_t button_list_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+void ui_add_button_entry(button_entry *entry) {
+    
+    pthread_mutex_lock(&button_list_mutex);
+    
+    if ( ui_button_last == NULL ) {
+      ui_button_first = entry;    
+      ui_button_last = entry;
+    } else {
+      ui_button_last->next = entry;
+      entry->prev = ui_button_last;
+      ui_button_last = entry;
+    }
+    
+    pthread_mutex_unlock(&button_list_mutex);    
+}
+
+void ui_free_button_entry(button_entry *entry) {
+    free(entry->desc.text);
+    free(entry);   
+}
+
+int ui_remove_button_entry(button_entry *entry) 
 {
-    button_desc desc;
+    int removed = 0;
     
-    desc.bounds = *bounds;
-    desc.borderColor.r = 255;
-    desc.borderColor.g = 255;
-    desc.borderColor.b = 255;
-    desc.backgroundColor.r = 128;
-    desc.backgroundColor.g = 128;
-    desc.backgroundColor.b = 128;
-    desc.textColor.r = 255;
-    desc.textColor.g = 255;
-    desc.textColor.b = 255;
-    desc.text = text;
+    pthread_mutex_lock(&button_list_mutex);
     
-    return render_draw_button(&desc);
+    button_entry *current = ui_button_first;
+    while ( current != NULL ) {
+      if ( current == entry ) {
+          if ( ui_button_first == entry ) 
+          {
+            if ( ui_button_first == ui_button_last ) {
+              ui_button_first = NULL;
+              ui_button_last = NULL;
+            } else {
+              ui_button_first = entry -> next;
+              entry->next->prev = NULL;
+            }            
+          } 
+          else if ( ui_button_last == entry ) 
+          {
+            ui_button_last = entry->prev;    
+          } 
+          else {
+            entry->next->prev = entry->prev;
+            entry->prev->next = entry->next;
+          }
+          ui_free_button_entry(entry);
+          removed = 1;
+          break;
+      }
+    }
+    
+    pthread_mutex_unlock(&button_list_mutex);
+    if ( ! removed ) {
+      log_error("Failed to remove button entry %ld\n",entry);    
+    }
+    return removed;
+}
+
+button_entry *ui_find_button(int x,int y) 
+{
+    button_entry *result = NULL;
+    SDL_Rect *bounds;
+    
+    pthread_mutex_lock(&button_list_mutex);
+    
+    button_entry *current = ui_button_first;
+    while ( current != NULL ) {
+        bounds = &current->desc.bounds;
+        if ( x >= bounds->x && y >= bounds->y && x <= (bounds->x + bounds->w) && y <= (bounds->y + bounds->h) ) {
+          result = current;
+          break;
+        }
+        current = current->next;
+    }
+    pthread_mutex_unlock(&button_list_mutex);          
+    return result;
+}
+
+int ui_add_button(char *text,SDL_Rect *bounds,ButtonHandler clickHandler) 
+{
+    button_entry *entry = calloc(1,sizeof(button_entry));
+    if ( entry == NULL ) {
+        return 0;
+    }
+    entry->clickHandler = clickHandler;
+    entry->desc.bounds = *bounds;
+    entry->desc.borderColor.r = 255;
+    entry->desc.borderColor.g = 255;
+    entry->desc.borderColor.b = 255;
+    entry->desc.backgroundColor.r = 128;
+    entry->desc.backgroundColor.g = 128;
+    entry->desc.backgroundColor.b = 128;
+    entry->desc.textColor.r = 255;
+    entry->desc.textColor.g = 255;
+    entry->desc.textColor.b = 255;
+    entry->desc.text = strdup(text);
+    
+    int result = render_draw_button(&entry->desc);
+    if ( result ) {
+      ui_add_button_entry(entry);
+    }
+    return result;
+}
+
+void clickHandler() {
+  log_info("button clicked!");    
 }
 
 int ui_run_test_internal(void* data) 
@@ -59,8 +169,36 @@ int ui_run_test_internal(void* data)
   SDL_FillRect(scrMain,&rectBox,nColGreen);
 
   SDL_Rect buttonBounds = {50,50,150,20};
-  render_button("button1",&buttonBounds);
+  ui_add_button("button1",&buttonBounds,clickHandler);
   
+  return 1;
+}
+
+void ui_handle_touch_event(TouchEvent *event) 
+{
+  log_info("ui_handle_touch invoked\n");
+  
+  if ( event->type == TOUCH_START ) {
+      button_entry *pressed = ui_find_button(event->x,event->y);
+      if ( pressed != NULL ) 
+      {        
+        pressed_button = pressed;    
+      }
+  } else if ( event->type == TOUCH_STOP ) {
+      button_entry *released = ui_find_button(event->x,event->y);
+      if ( pressed_button != NULL && released != NULL ) {
+        if ( pressed_button == released ) 
+        {
+          log_debug("Detected click on '%s'\n",pressed_button->desc.text);
+          pressed_button->clickHandler();   
+        } 
+        pressed_button = NULL;    
+      }
+  }  
+}
+
+int ui_init() {
+  input_set_input_handler(ui_handle_touch_event);    
   return 1;
 }
 
@@ -68,6 +206,10 @@ int ui_run_test()
 {
   if ( ! render_init_render() ) {
     return 0;  
+  }
+
+  if ( ! ui_init() ) {
+    return 0;    
   }
   
   log_debug("Now calling run_test_internal()...");

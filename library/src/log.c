@@ -2,8 +2,6 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-enum LogLevel { ERROR=0,WARN=1,INFO=2,DEBUG=3,TRACE=4 };
-
 enum LogLevel level = INFO;
 
 void log_all(const char*level,char *msg,...) 

@@ -8,6 +8,7 @@
 #include <string.h>
 #include "input.h"
 #include <stdarg.h>
+#include "atomic.h"
 
 SDL_Surface* scrMain = NULL;
 
@@ -54,22 +55,6 @@ typedef struct mbox_entry
 
 mbox_entry *mbox_first = NULL;
 mbox_entry *mbox_last = NULL;
-
-// wait for condition
-#define render_wait_condition(mutex,condition) \
-      pthread_mutex_lock(mutex); \
-      pthread_cond_wait(condition, mutex); \
-      pthread_mutex_unlock(mutex); 
-      
-// signal condition
-#define render_signal_condition(mutex,condition) \
-    pthread_mutex_lock(mutex); \
-    pthread_cond_signal(condition); \
-    pthread_mutex_unlock(mutex);  
-    
-#define render_init_condition(mutex,condition) \
-      pthread_mutex_init(mutex, NULL); \
-      pthread_cond_init(condition,NULL);    
 
 void render_error(const char* msg,...) 
 {
@@ -398,7 +383,7 @@ void *render_main_event_loop(void* data)
       if ( ! terminate ) {
           
         if ( input_poll_touch(&touchEvent) ) {
-            log_debug("Touch event at (%d,%d)",touchEvent.x,touchEvent.y);
+            input_invoke_input_handler(&touchEvent);
         }
         SDL_Flip(scrMain);       
         SDL_Delay(20);        
