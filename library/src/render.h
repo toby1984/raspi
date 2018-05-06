@@ -20,6 +20,15 @@ typedef struct viewport_desc {
   int bitsPerPixel;
 } viewport_desc;
 
+typedef struct button_desc {
+    SDL_Rect bounds;
+    SDL_Color borderColor;
+    SDL_Color backgroundColor;
+    SDL_Color textColor;
+    int fontSize;
+    char *text;
+} button_desc;
+
 typedef int (*RenderCallback)(void*);
 
 int render_exec_on_thread(RenderCallback callback,void *data,int awaitCompletion);
@@ -39,6 +48,8 @@ void sdl_init_test2();
 int render_has_error();
 
 volatile const char* render_get_error();
+
+void render_draw_button(button_desc *button);
 
 #endif
 

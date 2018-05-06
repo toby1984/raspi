@@ -434,4 +434,61 @@ int render_has_error() {
 
 volatile const char* render_get_error() {
   return lastRenderError;    
+    
+}
+
+/**
+ * Draws a rectangle using the given color.
+ */
+int render_draw_button_internal(button_desc *button) {
+ /*
+  *boxRGBA (SDL_Surface *dst, Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
+ 	Draw box (filled rectangle) with blending. 
+ 	
+roundedBoxRGBA (SDL_Surface *dst, Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 rad, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
+ 	Draw rounded-corner box (filled rectangle) with blending.  	
+ 	
+roundedRectangleColor (SDL_Surface *dst, Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 rad, Uint32 color)
+ 	Draw rounded-corner rectangle with blending.  	
+  */   
+ 
+  Sint16 x1 = button->bounds.x;
+  Sint16 y1 = button->bounds.y;
+  Sint16 x2 = button->bounds.x+button->bounds.w;
+  Sint16 y2 = button->bounds.y+button->bounds.h;
+  roundedBoxRGBA(srcMain,x1,y1,x2,y2,
+                 button->backgroundColor.r,
+                 button->backgroundColor.g,
+                 button->backgroundColor.b,
+                 button->backgroundColor.a);
+
+  roundedBoxRGBA(srcMain,x1,y1,x2,y2,
+                 button->borderColor.r,
+                 button->borderColor.g,
+                 button->borderColor.b,
+                 button->borderColor.a);  
+  
+  int textWidth;
+  int textHeight;
+  
+  int result = TTF_SizeText(font, button->text, &textWidth, &textHeight);
+  if ( ! result ) {
+     render_error("Failed to size text");
+    return 0;    
+  }
+  int textX = button->bounds.x + button->bounds.w/2 - textWidth/2;
+  int textY = button->bounds.y + button->bounds.h/2 - textHeight/2;
+ 
+  render_text_args text;
+  text.text = button->text;
+  text.x = textX;
+  text.y = textY;
+  text.color = button->textColor; 
+  
+  render_text_internal(&text);
+  return 1;
+}
+
+int  render_draw_button(button_desc *button) {
+    return render_exec_on_thread(render_draw_button_internal,button,1);
 }

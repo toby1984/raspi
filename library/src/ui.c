@@ -7,6 +7,26 @@
 #include "log.h"
 #include <unistd.h>
 
+/*
+ * typedef struct button_desc {
+    SDL_Rect bounds;
+    SDL_Color borderColor;
+    SDL_Color backgroundColor;
+    SDL_Color textColor;
+    char *text;
+} button_desc;
+ */
+int render_button(char *text,SDL_Rect bounds)  {
+    button_desc desc;
+    desc.bounds = bounds;
+    desc.borderColor = {255,255,255,128};
+    desc.backgroundColor = {128,128,128,128};
+    desc.textColor = {255,255,255,128};
+    desc.text = text;
+    
+    return render_draw_button(&desc);
+}
+
 int ui_run_test_internal(void* data) 
 {
   viewport_desc desc;
@@ -28,9 +48,9 @@ int ui_run_test_internal(void* data)
   SDL_Rect rectBox = {0,0,desc.width,desc.height/2};
   SDL_FillRect(scrMain,&rectBox,nColGreen);
 
-  // Draw some text
-  SDL_Color color = {255, 255, 255};
-  render_render_text("TEST",50,50,color);
+  SDL_Rect buttonBounds = {50,50,150,20};
+  render_button("button1",&buttonBounds);
+  
   return 1;
 }
 
