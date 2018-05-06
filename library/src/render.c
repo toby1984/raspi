@@ -1,6 +1,7 @@
 #include "render.h"
 #include "SDL/SDL.h"
 #include "SDL/SDL_ttf.h"
+#include "SDL/SDL_gfx.h"
 #include "SDL/SDL_getenv.h"
 #include <pthread.h>
 #include "log.h"

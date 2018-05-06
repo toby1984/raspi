@@ -5,7 +5,7 @@ include(GNUInstallDirs)
 add_library(mylib SHARED src/mylib.c src/input.c src/render.c  src/ui.c src/log.c)
 
 find_package( Threads )
-target_link_libraries(mylib SDL SDL_ttf ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(mylib SDL SDL_ttf SDL_gfx ${CMAKE_THREAD_LIBS_INIT})
 
 # set_target_properties(mylib PROPERTIES
 #     VERSION ${PROJECT_VERSION}
