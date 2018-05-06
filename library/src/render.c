@@ -12,21 +12,21 @@
 
 SDL_Surface* scrMain = NULL;
 
-TTF_Font* font = NULL;
+static TTF_Font* font = NULL;
 
-int initFlags = 0;
+static int initFlags = 0;
 
-viewport_desc viewportInfo = {0};
+static viewport_desc viewportInfo = {0};
 
-volatile pthread_t renderingThreadId;
+static volatile pthread_t renderingThreadId;
 
 // rendering thread init stuff
-pthread_cond_t init_condition = PTHREAD_COND_INITIALIZER;
-pthread_mutex_t init_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t init_condition = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t init_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-volatile int initResult = 0;
+static volatile int initResult = 0;
 
-volatile const char *lastRenderError;
+static volatile const char *lastRenderError;
 
 typedef struct render_text_args {
   const char *text;
@@ -37,7 +37,7 @@ typedef struct render_text_args {
 
 // mailbox
 
-pthread_mutex_t mbox_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t mbox_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 #define MBOX_FLAG_FREED_BY_CREATOR 1<<0
 
@@ -53,8 +53,8 @@ typedef struct mbox_entry
   int result;
 } mbox_entry;
 
-mbox_entry *mbox_first = NULL;
-mbox_entry *mbox_last = NULL;
+static mbox_entry *mbox_first = NULL;
+static mbox_entry *mbox_last = NULL;
 
 void render_error(const char* msg,...) 
 {

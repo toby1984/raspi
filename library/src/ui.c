@@ -9,36 +9,33 @@
 #include <string.h>
 #include <pthread.h>
 
-/*
- typedef struct button_desc {
-    SDL_Rect bounds;
-    SDL_Color borderColor;
-    SDL_Color backgroundColor;
-    SDL_Color textColor;
-    int fontSize;
-    char *text;
-} button_desc;
- */
-
 typedef struct button_entry {
   struct button_entry *next;
   struct button_entry *prev;
+  int buttonId;
   ButtonHandler clickHandler;
   button_desc desc;
 } button_entry;
 
-button_entry *ui_button_first=NULL;
-button_entry *ui_button_last=NULL;
+static button_entry *ui_button_first=NULL;
+static button_entry *ui_button_last=NULL;
 
 // button that is currently pressed down by the user
 // but not released yet
-button_entry *pressed_button = NULL;
+static button_entry *pressed_button = NULL;
 
-pthread_mutex_t button_list_mutex = PTHREAD_MUTEX_INITIALIZER;
+static int uniqueUIElementId = 1; // must start with 1 as 0 is used to signal an error
 
-void ui_add_button_entry(button_entry *entry) {
+static pthread_mutex_t button_list_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+int ui_add_button_entry(button_entry *entry) {
     
     pthread_mutex_lock(&button_list_mutex);
+    
+    int buttonId = uniqueUIElementId;
+    uniqueUIElementId++;
+    entry->buttonId = buttonId;
+    
     
     if ( ui_button_last == NULL ) {
       ui_button_first = entry;    
@@ -50,6 +47,9 @@ void ui_add_button_entry(button_entry *entry) {
     }
     
     pthread_mutex_unlock(&button_list_mutex);    
+    fprintf(stderr,"add_button: Added button with ID %d\n",buttonId);
+    log_info("add_button: Added button with ID %d\n",buttonId);
+    return buttonId;
 }
 
 void ui_free_button_entry(button_entry *entry) {
@@ -138,13 +138,13 @@ int ui_add_button(char *text,SDL_Rect *bounds,ButtonHandler clickHandler)
     
     int result = render_draw_button(&entry->desc);
     if ( result ) {
-      ui_add_button_entry(entry);
+      return ui_add_button_entry(entry);
     }
     return result;
 }
 
-void clickHandler() {
-  log_info("button clicked!");    
+void clickHandler(int buttonId) {
+  log_info("button %d clicked!",buttonId);    
 }
 
 int ui_run_test_internal(void* data) 
@@ -190,7 +190,7 @@ void ui_handle_touch_event(TouchEvent *event)
         if ( pressed_button == released ) 
         {
           log_debug("Detected click on '%s'\n",pressed_button->desc.text);
-          pressed_button->clickHandler();   
+          pressed_button->clickHandler(pressed_button->buttonId);   
         } 
         pressed_button = NULL;    
       }

@@ -4,11 +4,11 @@
 #include "input.h"
 #include "render.h"
 
-int mouseButtonPressed = 0;
+static int mouseButtonPressed = 0;
 
-volatile InputHandler *inputHandler = NULL;
+static volatile InputHandler *inputHandler = NULL;
 
-volatile struct timeval lastTouchEvent={0,0};
+static volatile struct timeval lastTouchEvent={0,0};
 
 int input_init_touch() {
     return 1;
