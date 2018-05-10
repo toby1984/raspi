@@ -3,6 +3,8 @@
 
 #include "SDL/SDL.h"
 
+#define LISTVIEW_CLICK_MAXDELTA_Y 3
+
 // parameter is the button ID of the clicked button
 typedef void (*ButtonHandler)(int);
 

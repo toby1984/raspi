@@ -135,12 +135,10 @@ int ui_remove_button_entry(button_entry *entry)
 
 #define CONTAINS(bounds,x,y) (( x >= (bounds)->x && y >= (bounds)->y && x <= ((bounds)->x + (bounds)->w) && y <= ((bounds)->y + (bounds)->h) ) ? 1 : 0)
 
-button_entry *ui_find_button(int x,int y) 
+button_entry *ui_find_button_nolock(int x,int y) 
 {
     button_entry *result = NULL;
     SDL_Rect *bounds;
-    
-    pthread_mutex_lock(&ui_mutex);
     
     button_entry *current = ui_button_first;
     while ( current != NULL ) {
@@ -151,6 +149,13 @@ button_entry *ui_find_button(int x,int y)
         }
         current = current->next;
     }
+    return result;
+}
+
+button_entry *ui_find_button(int x,int y) 
+{
+    pthread_mutex_lock(&ui_mutex);
+    button_entry *result = ui_find_button_nolock(x,y);
     pthread_mutex_unlock(&ui_mutex);          
     return result;
 }
@@ -218,11 +223,9 @@ typedef struct button_desc
  * @param y
  * @return listview_entry or NULL
  */
-listview_entry *ui_find_listview(int x,int y) 
+listview_entry *ui_find_listview_nolock(int x,int y) 
 {
   listview_entry *result = NULL;
-  
-  pthread_mutex_lock(&ui_mutex);
   
   listview_entry *current = listViews;
   listview_entry *next;
@@ -244,8 +247,14 @@ listview_entry *ui_find_listview(int x,int y)
     current = next;
   }
   
-  pthread_mutex_unlock(&ui_mutex);  
+  return result;  
+}
 
+listview_entry *ui_find_listview(int x,int y) 
+{
+  pthread_mutex_lock(&ui_mutex);
+  listview_entry *result = ui_find_listview_nolock(x,y);
+  pthread_mutex_unlock(&ui_mutex);  
   return result;  
 }
 
@@ -343,6 +352,8 @@ void ui_handle_touch_event_button(button_entry *button,TouchEvent *event)
         pressed_button = NULL;       
     }
   }  
+  
+  pthread_mutex_unlock(&ui_mutex);  
 }
 
   /*
@@ -368,6 +379,11 @@ static int listViewTouchStartY = -1;
 void ui_handle_touch_event_listview(listview_entry *listview, TouchEvent *event) 
 {
   log_info("ui_handle_touch_event_listview(): listview %d clicked",listview->listViewId);
+  
+  int listViewId = listview->listViewId;
+  int clickedItemIdx = 0;
+  ListViewClickCallback callbackToInvoke = NULL;
+  
   if ( event->type == TOUCH_START ) 
   {
     activeListView = listview;
@@ -376,6 +392,13 @@ void ui_handle_touch_event_listview(listview_entry *listview, TouchEvent *event)
   } 
   else if ( event->type == TOUCH_STOP ) 
   {
+    if ( activeListView != NULL && listViewMaxYDelta <= LISTVIEW_CLICK_MAXDELTA_Y ) 
+    {
+      // calculate item index
+      int realY = (listViewTouchStartY - listview->y) + listview->yStartOffset;
+      clickedItemIdx = ( realY / LISTVIEW_ITEM_HEIGHT ); 
+      callbackToInvoke = listview->clickCallback;
+    }
     activeListView = NULL;
     listViewMaxYDelta = 0;
     listViewTouchStartY = event->y;    
@@ -403,6 +426,13 @@ void ui_handle_touch_event_listview(listview_entry *listview, TouchEvent *event)
     listview->yStartOffset = newOffset;
     render_draw_listview(listview);
   }
+  
+  pthread_mutex_unlock(&ui_mutex);
+  
+  if ( callbackToInvoke != NULL ) 
+  {
+    callbackToInvoke(listViewId,clickedItemIdx);
+  }
 }
 
 
@@ -410,63 +440,24 @@ void ui_handle_touch_event(TouchEvent *event)
 {
   log_info("ui_handle_touch invoked\n");
   
-  button_entry *button = ui_find_button(event->x,event->y);
-  if ( button != NULL ) {
+  pthread_mutex_lock(&ui_mutex);
+  
+  button_entry *button = ui_find_button_nolock(event->x,event->y);
+  if ( button != NULL ) 
+  {
+    // Function UNLOCKS mutex    
     ui_handle_touch_event_button(button,event);
     return;
   } 
-  
-  listview_entry *listview = ui_find_listview(event->x,event->y);
-  if ( listview != NULL ) {
+
+  listview_entry *listview = ui_find_listview_nolock(event->x,event->y);
+  if ( listview != NULL ) 
+  {
+    // Function UNLOCKS mutex
     ui_handle_touch_event_listview(listview,event);
-    return;  
+    return;
   }
-  
-  
-  if ( event->type == TOUCH_START ) {
-      button_entry *pressed = button;
-      log_info("Clicked button: ",pressed);      
-      if ( pressed != NULL ) 
-      {        
-        if ( pressed_button ) {
-          pressed_button->desc.pressed = 0;
-          log_info("rendering button as NOT pressed (TOUCH_START)\n");          
-          render_draw_button(&pressed_button->desc);
-        }
-        pressed->desc.pressed = 1;
-        pressed_button = pressed;    
-        log_info("rendering button as pressed\n");           
-        render_draw_button(&pressed_button->desc);        
-      }
-  } 
-  else if ( event->type == TOUCH_STOP ) 
-  {
-      button_entry *released = button;
-      if ( pressed_button != NULL ) 
-      {
-        pressed_button->desc.pressed = 0;
-        log_info("rendering button as NOT pressed (TOUCH_STOP)\n");            
-        render_draw_button(&pressed_button->desc);           
-        
-        if ( released != NULL && pressed_button == released ) 
-        {
-          log_debug("Detected click on '%s'\n",pressed_button->desc.text);
-          pressed_button->clickHandler(pressed_button->buttonId);   
-        }        
-        pressed_button = NULL;    
-      }
-  } 
-  else if ( event->type == TOUCH_CONTINUE ) 
-  {
-    button_entry *current = button;    
-    if ( pressed_button != NULL && pressed_button != current ) 
-    {    
-        pressed_button->desc.pressed = 0;
-        log_info("rendering button as NOT pressed (TOUCH_CONTINUE)\n");            
-        render_draw_button(&pressed_button->desc);           
-        pressed_button = NULL;       
-    }
-  }
+  pthread_mutex_unlock(&ui_mutex);
 }
 
 int ui_init(void) 

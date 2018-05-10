@@ -370,6 +370,10 @@ void *render_main_event_loop(void* data)
     int terminate = 0;
     while ( ! terminate ) 
     {
+      while ( input_poll_touch(&touchEvent) ) {
+          input_invoke_input_handler(&touchEvent);
+      }
+        
       mbox_entry *entry = NULL;
       while ( ! terminate && ( entry = render_poll_mbox() ) ) 
       {
@@ -386,10 +390,6 @@ void *render_main_event_loop(void* data)
           }
       }           
       if ( ! terminate ) {
-          
-        if ( input_poll_touch(&touchEvent) ) {
-            input_invoke_input_handler(&touchEvent);
-        }
         SDL_Flip(scrMain);       
         SDL_Delay(16);        
       }
@@ -596,7 +596,6 @@ int render_draw_listview_internal(listview_entry *listView)
     log_error("listview_internal(): Failed to allocate surface");
     return 0;  
   }
-    
   
   // fill background
   Uint8 r = 128;
@@ -604,7 +603,7 @@ int render_draw_listview_internal(listview_entry *listView)
   Uint8 b = 128;
   Uint8 a = 255;
   
-  boxRGBA(scrMain,listView->x,listView->y,listView->x+ listView->width,listView->y + visibleHeight,r,g,b,a);   
+  // boxRGBA(scrMain,listView->x,listView->y,listView->x+ listView->width,listView->y + visibleHeight,r,g,b,a);   
   
   // calculate index of first item to render
   int firstItemIndex = listView->yStartOffset / LISTVIEW_ITEM_HEIGHT;
