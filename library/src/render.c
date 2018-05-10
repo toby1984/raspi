@@ -72,15 +72,15 @@ void render_error(const char* msg,...)
   lastRenderError = msg;
 }   
 
-void render_success() {
+void render_success(void) {
   lastRenderError = NULL;    
 }
 
-int render_is_on_rendering_thread() {
+int render_is_on_rendering_thread(void) {
   return pthread_equal(renderingThreadId,pthread_self());
 }
 
-void render_assert_rendering_thread() {
+void render_assert_rendering_thread(void) {
   if ( ! render_is_on_rendering_thread() ) {
       render_error("Not on rendering thread!");  
   }
@@ -161,7 +161,7 @@ int render_exec_on_thread(RenderCallback callback,void *data,int awaitCompletion
  * 
  * @return mbox entry or NULL
  */
-mbox_entry *render_poll_mbox() 
+mbox_entry *render_poll_mbox(void) 
 {
   pthread_mutex_lock(&mbox_mutex);
   
@@ -185,7 +185,7 @@ mbox_entry *render_poll_mbox()
  * Returns whether the rendering system was initialized.
  * @return 
  */
-int render_is_initialized() 
+int render_is_initialized(void) 
 {
   if ( initFlags == (RENDER_FLAG_SDL_INIT | RENDER_FLAG_TTF_INIT | RENDER_FLAG_TTF_FONT_LOADED) ) {
     return 1;
@@ -239,7 +239,7 @@ int render_close_render_internal(void *dummy)
   return 1;
 }
 
-void render_close_render() {
+void render_close_render(void) {
   render_exec_on_thread(&render_close_render_internal,NULL,1); 
 }
 
@@ -275,7 +275,7 @@ void render_render_text(const char *text,int x,int y,SDL_Color color)
   render_exec_on_thread( &render_render_text_internal, args,0);
 }
 
-int render_init_render_internal() 
+int render_init_render_internal(void) 
 {
   log_info("init_render_internal() called \n");
   // --------------------------------------
@@ -386,14 +386,14 @@ void *render_main_event_loop(void* data)
             input_invoke_input_handler(&touchEvent);
         }
         SDL_Flip(scrMain);       
-        SDL_Delay(20);        
+        SDL_Delay(16);        
       }
     }
     log_info("Rendering thread terminated.");      
     return 0;
 }
 
-int render_init_render() 
+int render_init_render(void) 
 {
   log_debug("init_render() called.");  
   if ( render_is_initialized() ) {
@@ -415,11 +415,11 @@ int render_init_render()
   return initResult;
 }
 
-int render_has_error() {
+int render_has_error(void) {
     return lastRenderError != NULL;
 }
 
-volatile const char* render_get_error() {
+volatile const char* render_get_error(void) {
   return lastRenderError;    
     
 }
@@ -429,7 +429,7 @@ volatile const char* render_get_error() {
  */
 int render_draw_button_internal(button_desc *button) {
  
-  fprintf(stderr,"About to render button...\n");
+  log_error("About to render button...\n");
     
   Sint16 x1 = button->bounds.x;
   Sint16 y1 = button->bounds.y;
@@ -437,37 +437,50 @@ int render_draw_button_internal(button_desc *button) {
   Sint16 y2 = button->bounds.y+button->bounds.h;
   Sint16 rad = 5;
   
+  SDL_Color *bgColor = button->pressed ? &button->clickedColor : &button->backgroundColor;
+  
   roundedBoxRGBA(scrMain,x1,y1,x2,y2,rad,
-                 button->backgroundColor.r,
-                 button->backgroundColor.g,
-                 button->backgroundColor.b,
-                 128);
+                 bgColor->r,
+                 bgColor->g,
+                 bgColor->b,
+                 255);
 
   roundedRectangleRGBA(scrMain,x1,y1,x2,y2,rad,
                  button->borderColor.r,
                  button->borderColor.g,
                  button->borderColor.b,
-                 128);  
+                 255);  
   
   int textWidth;
   int textHeight;
   
+  if ( button->text == NULL ) {
+    render_error("Button has no text assigned?");
+    return 0;    
+  }  
+  
   int result = TTF_SizeText(font, button->text, &textWidth, &textHeight);
   if ( result != 0 ) {
-    fprintf(stderr,"Failed to size text\n");
+    log_error("Failed to size text\n");
     render_error("Failed to size text");
     return 0;    
   }
   int textX = button->bounds.x + button->bounds.w/2 - textWidth/2;
   int textY = button->bounds.y + button->bounds.h/2 - textHeight/2;
   
-  fprintf(stderr,"Rendering text at (%d,%d) with w=%d,h=%d\n",textX,textY,textWidth,textHeight);
+  log_error("Rendering text at (%d,%d) with w=%d,h=%d\n",textX,textY,textWidth,textHeight);
  
   render_text_args *text = malloc(sizeof(render_text_args));
   if ( text == NULL ) {
+        render_error("Failed to alloc memory for render_text_args");
     return 0;    
   }
   text->text = strdup(button->text);
+  if ( text->text == NULL ) {
+    render_error("strdup() failed");    
+    free(text);
+    return 0;
+  }
   text->x = textX;
   text->y = textY;
   text->color = button->textColor; 
@@ -477,5 +490,6 @@ int render_draw_button_internal(button_desc *button) {
 }
 
 int  render_draw_button(button_desc *button) {
+    log_info("drawing button with %lx",button);
     return render_exec_on_thread(render_draw_button_internal,button,1);
 }

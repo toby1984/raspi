@@ -28,6 +28,29 @@ static int uniqueUIElementId = 1; // must start with 1 as 0 is used to signal an
 
 static pthread_mutex_t button_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+void ui_free_button_entry(button_entry *entry) {
+    free(entry->desc.text);
+    free(entry);   
+}
+
+void ui_free_all_button_entries(void) 
+{
+  pthread_mutex_lock(&button_list_mutex);
+  
+  button_entry *current=ui_button_first;
+  button_entry *next;
+  
+  while ( current ) 
+  {
+      next = current->next;
+      ui_free_button_entry(current);
+      current = next;
+  }
+  ui_button_first = NULL;
+  ui_button_last = NULL;
+  pthread_mutex_unlock(&button_list_mutex);   
+}
+
 int ui_add_button_entry(button_entry *entry) {
     
     pthread_mutex_lock(&button_list_mutex);
@@ -47,14 +70,8 @@ int ui_add_button_entry(button_entry *entry) {
     }
     
     pthread_mutex_unlock(&button_list_mutex);    
-    fprintf(stderr,"add_button: Added button with ID %d\n",buttonId);
     log_info("add_button: Added button with ID %d\n",buttonId);
     return buttonId;
-}
-
-void ui_free_button_entry(button_entry *entry) {
-    free(entry->desc.text);
-    free(entry);   
 }
 
 int ui_remove_button_entry(button_entry *entry) 
@@ -117,6 +134,12 @@ button_entry *ui_find_button(int x,int y)
     return result;
 }
 
+void assign_color(SDL_Color *color,Uint8 r,Uint8 g, Uint8 b) {
+   color->r=r;
+   color->g=g;
+   color->b=b;
+}
+
 int ui_add_button(char *text,SDL_Rect *bounds,ButtonHandler clickHandler) 
 {
     button_entry *entry = calloc(1,sizeof(button_entry));
@@ -124,16 +147,12 @@ int ui_add_button(char *text,SDL_Rect *bounds,ButtonHandler clickHandler)
         return 0;
     }
     entry->clickHandler = clickHandler;
+    entry->desc.pressed=0;
     entry->desc.bounds = *bounds;
-    entry->desc.borderColor.r = 255;
-    entry->desc.borderColor.g = 255;
-    entry->desc.borderColor.b = 255;
-    entry->desc.backgroundColor.r = 128;
-    entry->desc.backgroundColor.g = 128;
-    entry->desc.backgroundColor.b = 128;
-    entry->desc.textColor.r = 255;
-    entry->desc.textColor.g = 255;
-    entry->desc.textColor.b = 255;
+    assign_color(&entry->desc.borderColor,255,255,255);
+    assign_color(&entry->desc.backgroundColor,128,128,128);
+    assign_color(&entry->desc.textColor,255,255,255);
+    assign_color(&entry->desc.clickedColor,255,255,255);
     entry->desc.text = strdup(text);
     
     int result = render_draw_button(&entry->desc);
@@ -143,83 +162,67 @@ int ui_add_button(char *text,SDL_Rect *bounds,ButtonHandler clickHandler)
     return result;
 }
 
-void clickHandler(int buttonId) {
-  log_info("button %d clicked!",buttonId);    
-}
-
-int ui_run_test_internal(void* data) 
-{
-  viewport_desc desc;
-  render_get_viewport_desc(&desc);
-  
-  SDL_Rect        rectTmp;
-  Uint32          nColTmp;
-  for (Uint16 nPosX=0;nPosX<desc.width;nPosX++) {
-          rectTmp.x = nPosX;
-          rectTmp.y = desc.height/2;
-          rectTmp.w = 1;
-          rectTmp.h = desc.height/2;
-          nColTmp = SDL_MapRGB(scrMain->format,nPosX%256,0,255-(nPosX%256));
-          SDL_FillRect(scrMain,&rectTmp,nColTmp);
-  }
-
-  // Draw a green box
-  Uint32 nColGreen = SDL_MapRGB(scrMain->format,0,255,0);
-  SDL_Rect rectBox = {0,0,desc.width,desc.height/2};
-  SDL_FillRect(scrMain,&rectBox,nColGreen);
-
-  SDL_Rect buttonBounds = {50,50,150,20};
-  ui_add_button("button1",&buttonBounds,clickHandler);
-  
-  return 1;
-}
-
 void ui_handle_touch_event(TouchEvent *event) 
 {
   log_info("ui_handle_touch invoked\n");
   
   if ( event->type == TOUCH_START ) {
       button_entry *pressed = ui_find_button(event->x,event->y);
+      log_info("Clicked button: ",pressed);      
       if ( pressed != NULL ) 
       {        
+        if ( pressed_button ) {
+          pressed_button->desc.pressed = 0;
+          log_info("rendering button as NOT pressed (TOUCH_START)\n");          
+          render_draw_button(&pressed_button->desc);
+        }
+        pressed->desc.pressed = 1;
         pressed_button = pressed;    
+        log_info("rendering button as pressed\n");           
+        render_draw_button(&pressed_button->desc);        
       }
-  } else if ( event->type == TOUCH_STOP ) {
+  } 
+  else if ( event->type == TOUCH_STOP ) 
+  {
       button_entry *released = ui_find_button(event->x,event->y);
-      if ( pressed_button != NULL && released != NULL ) {
-        if ( pressed_button == released ) 
+      if ( pressed_button != NULL ) 
+      {
+        pressed_button->desc.pressed = 0;
+        log_info("rendering button as NOT pressed (TOUCH_STOP)\n");            
+        render_draw_button(&pressed_button->desc);           
+        
+        if ( released != NULL && pressed_button == released ) 
         {
           log_debug("Detected click on '%s'\n",pressed_button->desc.text);
           pressed_button->clickHandler(pressed_button->buttonId);   
-        } 
+        }        
         pressed_button = NULL;    
       }
-  }  
+  } 
+  else if ( event->type == TOUCH_CONTINUE ) 
+  {
+    button_entry *current = ui_find_button(event->x,event->y);    
+    if ( pressed_button != NULL && pressed_button != current ) 
+    {    
+        pressed_button->desc.pressed = 0;
+        log_info("rendering button as NOT pressed (TOUCH_CONTINUE)\n");            
+        render_draw_button(&pressed_button->desc);           
+        pressed_button = NULL;       
+    }
+  }
 }
 
-int ui_init() {
+int ui_init(void) 
+{
+  if ( ! render_init_render() ) {
+    return 0;  
+  }  
   input_set_input_handler(ui_handle_touch_event);    
   return 1;
 }
 
-int ui_run_test() 
+void ui_close(void) 
 {
-  if ( ! render_init_render() ) {
-    return 0;  
-  }
-
-  if ( ! ui_init() ) {
-    return 0;    
-  }
-  
-  log_debug("Now calling run_test_internal()...");
-  render_exec_on_thread(&ui_run_test_internal,NULL,0);
-  
-  log_debug("Now sleeping 6 seconds ...");  
-  sleep(6);
-  log_debug("Now calling close_render()...");
-  
-  render_close_render();  
-  
-  return 1;
+  render_close_render();   
+  ui_free_all_button_entries();
 }

@@ -26,10 +26,10 @@ void input_set_input_handler(InputHandler handler);
 
 void input_invoke_input_handler(TouchEvent *event);
 
-int input_init_touch();
+int input_init_touch(void);
 
 int input_poll_touch(TouchEvent *event);
 
-void input_close_touch();
+void input_close_touch(void);
 
 #endif

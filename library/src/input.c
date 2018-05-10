@@ -10,7 +10,7 @@ static volatile InputHandler *inputHandler = NULL;
 
 static volatile struct timeval lastTouchEvent={0,0};
 
-int input_init_touch() {
+int input_init_touch(void) {
     return 1;
 }
 
@@ -34,6 +34,7 @@ int input_poll_touch(TouchEvent *event)
             }
             if ( mouseButtonPressed == 0 ) 
             {
+                log_info("button #1 pressed");              
                 mouseButtonPressed = 1;
                 
                 event->x = test_event.button.x;
@@ -51,7 +52,9 @@ int input_poll_touch(TouchEvent *event)
             if ( test_event.button.button != SDL_BUTTON_LEFT ) {
               return 0;    
             }
-            if ( mouseButtonPressed ) {
+            if ( mouseButtonPressed ) 
+            {
+                log_info("button #1 released");               
               event->x = test_event.button.x;
               event->y = test_event.button.y;
               event->pressure = 0;            
@@ -103,7 +106,7 @@ int input_poll_touch(TouchEvent *event)
   return 1;    
 }
 
-void close_touch() {    
+void input_close_touch(void) {    
 }
 
 void input_set_input_handler(InputHandler handler) {

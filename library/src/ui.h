@@ -15,6 +15,10 @@ typedef void (*ButtonHandler)(int);
  */
 int ui_add_button(char *text,SDL_Rect *bounds,ButtonHandler clickHandler);
 
-int ui_run_test();
+int ui_run_test(void);
+
+int ui_init(void);
+
+void ui_close(void);
 
 #endif
