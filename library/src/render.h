@@ -3,6 +3,7 @@
 #define RENDER_H
 
 #include "SDL/SDL.h"
+#include "ui.h"
 
 #define FONT_PATH "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
 
@@ -13,6 +14,8 @@
 #define RENDER_FLAG_TTF_FONT_LOADED 1<<2
 
 #define FONT_SIZE 16
+
+#define LISTVIEW_ITEM_HEIGHT 20
 
 extern SDL_Surface* scrMain;
 
@@ -29,6 +32,8 @@ typedef struct button_desc
     SDL_Color backgroundColor;
     SDL_Color textColor;
     SDL_Color clickedColor;    
+    int cornerRadius;
+    int roundedCorners;
     int fontSize;
     int pressed;
     char *text;
@@ -49,6 +54,8 @@ void render_close_render(void);
 void render_text(const char *text,int x,int y,SDL_Color color);
 
 int render_has_error(void);
+
+int render_draw_listview(listview_entry *listView);
 
 volatile const char* render_get_error(void);
 

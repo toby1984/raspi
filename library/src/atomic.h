@@ -1,3 +1,5 @@
+#ifndef ATOMIC_H
+#define ATOMIC_H
 #include <pthread.h>
 
 // wait for condition
@@ -15,3 +17,5 @@
 #define render_init_condition(mutex,condition) \
       pthread_mutex_init(mutex, NULL); \
       pthread_cond_init(condition,NULL);
+      
+#endif      

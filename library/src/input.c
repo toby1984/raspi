@@ -17,7 +17,6 @@ int input_init_touch(void) {
 int input_poll_touch(TouchEvent *event) 
 {
  
-#define FAKE_TOUCHSCREEN
 #ifdef FAKE_TOUCHSCREEN
     SDL_Event test_event;
     if ( ! SDL_PollEvent(&test_event)) {
