@@ -1,5 +1,5 @@
+#include <Python.h>
 #include "mylib.h"
-#include "Python.h"
 #include <stdlib.h>
 
 typedef struct callback_entry 
@@ -87,7 +87,7 @@ static PyObject *myui_add_button(PyObject *self, PyObject *args)
     return Py_None;    
 }
 
-static PyMethodDef SpamMethods[] = 
+static PyMethodDef availableMethods[] = 
 {
     {"init",  myui_init, METH_VARARGS,"Execute a shell command."},
     {"close",  myui_close, METH_VARARGS,"Execute a shell command."},
@@ -97,7 +97,7 @@ static PyMethodDef SpamMethods[] =
 
 PyMODINIT_FUNC inituilib(void)
 {
-    PyObject *m = Py_InitModule("spam", SpamMethods);
+    PyObject *m = Py_InitModule("myui", availableMethods);
     if (m != NULL) {
     }
 }

@@ -16,5 +16,5 @@ target_include_directories(mylib PRIVATE .)
 install(TARGETS mylib
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-install(FILES ${CMAKE_BINARY_DIR}/mylib.pc
+install(FILES ${CMAKE_BINARY_DIR}/library/mylib.pc
     DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig)

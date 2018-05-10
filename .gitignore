@@ -76,3 +76,4 @@ cmake_install.cmake
 CMakeLists.txt.user
 Makefile
 mylib.pc
+bin
