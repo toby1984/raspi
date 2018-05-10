@@ -74,6 +74,28 @@ void ui_free_all_button_entries(void)
   pthread_mutex_unlock(&ui_mutex);   
 }
 
+void ui_free_listview_entry(listview_entry *listview) {
+
+  free(listview);  
+}
+
+void ui_free_all_listview_entries(void) 
+{
+  listview_entry *next;
+  
+  pthread_mutex_lock(&ui_mutex);
+  listview_entry *current = listViews;
+  while ( current ) 
+  {
+    next=current->next;
+    ui_free_listview_entry(current);
+    current = next;
+  }
+  listViews = NULL;
+  activeListView = NULL;
+  pthread_mutex_unlock(&ui_mutex);  
+}
+
 int ui_add_button_entry(button_entry *entry) {
     
     pthread_mutex_lock(&ui_mutex);
@@ -488,7 +510,8 @@ int ui_init(void)
 
 void ui_close(void) 
 {
-  ui_free_all_button_entries();    
   render_close_render();   
+  ui_free_all_button_entries();
+  ui_free_all_listview_entries();  
   
 }
