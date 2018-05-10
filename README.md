@@ -3,7 +3,7 @@
 Eventually this repository will contain C and Python code I'm running on my Pi Zero W to stream music from Spotify to a bluetooth speaker.
 Since I bought a 2.8" capacitive touch display from Adafruit I wanted to have a custom UI streamlined for use with the tiny 
 (320x200) display resolution...and since I'm usually looking for a challenge I decided to write a tiny UI library in C that 
-uses SDL 1.2 & tslib to render a UI to the framebuffer.
+uses SDL 1.2 & tslib (https://github.com/kergoth/tslib) to render a UI to the framebuffer.
 
 # Why use the outdated SDL1.2 ?
 
