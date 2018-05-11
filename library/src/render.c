@@ -494,7 +494,7 @@ int render_draw_button_internal_onto(SDL_Surface *surface, button_desc *button) 
   
   log_error("render_draw_button_internal_onto(): Rendering text at (%d,%d) with w=%d,h=%d\n",textX,textY,textWidth,textHeight);
  
-  render_text_args *text = malloc(sizeof(render_text_args));
+  render_text_args *text = calloc(1,sizeof(render_text_args));
   if ( text == NULL ) {
         render_error("render_draw_button_internal_onto(): Failed to alloc memory for render_text_args");
     return 0;    
@@ -507,7 +507,9 @@ int render_draw_button_internal_onto(SDL_Surface *surface, button_desc *button) 
   }
   text->x = textX;
   text->y = textY;
-  text->color = button->textColor; 
+  text->color.r = button->textColor.r; 
+  text->color.g = button->textColor.g; 
+  text->color.b = button->textColor.b; 
   
   return render_render_text_internal_onto(surface,text);
 }
@@ -567,10 +569,10 @@ int render_draw_listview_item(SDL_Surface *surface,char *label,int x,int y,int w
   button.cornerRadius = 0;
   button.fontSize = 16;
   button.text = label;
-  ASSIGN_COLOR(&button.borderColor,255,255,255);
-  ASSIGN_COLOR(&button.backgroundColor,128,128,128);
-  ASSIGN_COLOR(&button.textColor,255,0,0);
-  ASSIGN_COLOR(&button.clickedColor,255,255,255);  
+  ASSIGN_COLOR(&button.borderColor,255,0,0);
+  ASSIGN_COLOR(&button.backgroundColor,0,255,0);
+  ASSIGN_COLOR(&button.textColor,255,0,255);
+  ASSIGN_COLOR(&button.clickedColor,0,255,0);  
   
   return render_draw_button_internal_onto(surface,&button);
 }
@@ -603,14 +605,14 @@ int render_draw_listview_internal(listview_entry *listView)
   Uint8 b = 128;
   Uint8 a = 255;
   
-  // boxRGBA(scrMain,listView->x,listView->y,listView->x+ listView->width,listView->y + visibleHeight,r,g,b,a);   
+  boxRGBA(scrMain,listView->x,listView->y,listView->x+ listView->width,listView->y + visibleHeight,r,g,b,a);   
   
   // calculate index of first item to render
   int firstItemIndex = listView->yStartOffset / LISTVIEW_ITEM_HEIGHT;
   
   // draw items
   int maxIdx = (*listView->itemCountProvider)( listView->listViewId );
-  for ( int i = firstItemIndex,len=0 ; i < maxIdx && len < listView->visibleItemCount ; i++,len++) 
+  for ( int i = firstItemIndex,len=0 ; i < maxIdx && len < listView->visibleItemCount+1 ; i++,len++) 
   {
     char *label = (*listView->labelProvider)(listView->listViewId,i);  
     
