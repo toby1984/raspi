@@ -9,9 +9,10 @@
 
 // #define USE_FB
 
-#define RENDER_FLAG_SDL_INIT 1<<0
-#define RENDER_FLAG_TTF_INIT 1<<1
-#define RENDER_FLAG_TTF_FONT_LOADED 1<<2
+#define RENDER_FLAG_SDL_INIT (1<<0)
+#define RENDER_FLAG_TTF_INIT (1<<1)
+#define RENDER_FLAG_TTF_FONT_LOADED (1<<2)
+#define RENDER_FLAG_PNG_INITIALIZED (1<<3)
 
 #define FONT_SIZE 16
 
@@ -37,11 +38,12 @@ typedef struct button_desc
     int fontSize;
     int pressed;
     char *text;
+    SDL_Surface *image;
 } button_desc;
 
-typedef int (*RenderCallback)(void*);
+typedef void* (*RenderCallback)(void*);
 
-int render_exec_on_thread(RenderCallback callback,void *data,int awaitCompletion);
+void *render_exec_on_thread(RenderCallback callback,void *data,int awaitCompletion);
 
 int render_get_viewport_desc(viewport_desc *port);
 
@@ -61,5 +63,8 @@ volatile const char* render_get_error(void);
 
 int render_draw_button(button_desc *button);
 
+SDL_Surface *render_load_image(char *file);
+
+void render_free_surface(SDL_Surface *surface);
 #endif
 

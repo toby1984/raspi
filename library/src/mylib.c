@@ -11,6 +11,12 @@ int mylib_add_listview(SDL_Rect *bounds,ListViewLabelProvider labelProvider, Lis
   return ui_add_listview(bounds,labelProvider, itemCountProvider, clickCallback );
 }
 
+int mylib_add_image_button(char *imagePath,int x,int y,int width,int height,ButtonHandler clickHandler) 
+{
+  SDL_Rect rect = {x,y,width,height};    
+  return ui_add_image_button(imagePath,&rect,clickHandler);     
+}
+
 int mylib_init(void) {
   return ui_init();  
 }

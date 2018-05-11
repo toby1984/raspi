@@ -5,6 +5,8 @@
 
 int mylib_add_button(char *text,int x,int y,int width,int height,ButtonHandler clickHandler);
 
+int mylib_add_image_button(char *imagePath,int x,int y,int width,int height,ButtonHandler clickHandler);
+
 /**
  * Adds a new button.
  * @param bounds the button's bounds

@@ -37,13 +37,22 @@ typedef struct listview_entry
 
 
 /**
- * Adds a new button.
+ * Adds a new button that displays a text label.
  * @param text button text
  * @param bounds the button's bounds
  * @param clickHandler Invoked when the button is clicked
  * @return the button's ID (always >0) if everything worked ok, otherwise 0
  */
 int ui_add_button(char *text,SDL_Rect *bounds,ButtonHandler clickHandler);
+
+/**
+ * Adds a new button that displays an image.
+ * @param image path to image file
+ * @param bounds the button's bounds
+ * @param clickHandler Invoked when the button is clicked
+ * @return the button's ID (always >0) if everything worked ok, otherwise 0
+ */
+int ui_add_image_button(char *image,SDL_Rect *bounds,ButtonHandler clickHandler);
 
 /**
  * Adds a new button.

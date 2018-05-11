@@ -48,6 +48,10 @@ static int listViewTouchStartY = -1;
  * Free button entry.
  */
 void ui_free_button_entry(button_entry *entry) {
+    if ( entry->desc.image != NULL ) 
+    {
+      render_free_surface(entry->desc.image);
+    }
     free(entry->desc.text);
     free(entry);   
 }
@@ -182,21 +186,6 @@ int ui_add_button(char *text,SDL_Rect *bounds,ButtonHandler clickHandler)
         return 0;
     }
     
-    /*
-typedef struct button_desc 
-{   
-    SDL_Rect bounds;
-    SDL_Color borderColor;
-    SDL_Color backgroundColor;
-    SDL_Color textColor;
-    SDL_Color clickedColor;    
-    int cornerRadius;
-    int roundedCorners;
-    int fontSize;
-    int pressed;
-    char *text;
-} button_desc;     
-     */
     entry->clickHandler = clickHandler;
     entry->desc.pressed=0;       
     entry->desc.cornerRadius = 3;
@@ -212,6 +201,34 @@ typedef struct button_desc
       return ui_add_button_entry(entry);
     }
     return result;
+}
+
+int ui_add_image_button(char *image,SDL_Rect *bounds,ButtonHandler clickHandler) {
+    button_entry *entry = calloc(1,sizeof(button_entry));
+    if ( entry == NULL ) {
+        return 0;
+    }
+    
+    entry->clickHandler = clickHandler;
+    entry->desc.pressed=0;       
+    entry->desc.cornerRadius = 3;
+    entry->desc.bounds = *bounds;
+    ASSIGN_COLOR(&entry->desc.borderColor,255,255,255);
+    ASSIGN_COLOR(&entry->desc.backgroundColor,128,128,128);
+    ASSIGN_COLOR(&entry->desc.textColor,255,255,255);
+    ASSIGN_COLOR(&entry->desc.clickedColor,255,255,255);
+    entry->desc.image = render_load_image(image);
+    
+    if ( entry->desc.image == NULL ) {
+      free(entry);
+      return 0;    
+    }
+    
+    int result = render_draw_button(&entry->desc);
+    if ( result ) {
+      return ui_add_button_entry(entry);
+    }
+    return result;    
 }
 
 // ================================================
@@ -471,6 +488,7 @@ int ui_init(void)
 
 void ui_close(void) 
 {
+  ui_free_all_button_entries();    
   render_close_render();   
-  ui_free_all_button_entries();
+  
 }

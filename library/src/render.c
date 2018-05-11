@@ -1,10 +1,12 @@
 #include "render.h"
 #include "SDL/SDL.h"
 #include "SDL/SDL_ttf.h"
+#include "SDL/SDL_image.h"
 #include "SDL/SDL_gfxPrimitives.h"
 #include "SDL/SDL_getenv.h"
 #include <pthread.h>
 #include "log.h"
+#include <math.h>
 #include <string.h>
 #include "input.h"
 #include <stdarg.h>
@@ -51,7 +53,7 @@ typedef struct mbox_entry
   pthread_cond_t *finished_condition;
   pthread_mutex_t *finished_mutex;  
   void *data;
-  int result;
+  void *result;
 } mbox_entry;
 
 static mbox_entry *mbox_first = NULL;
@@ -96,9 +98,9 @@ void render_assert_rendering_thread(void) {
  * 
  * @return callback result
  */
-int render_exec_on_thread(RenderCallback callback,void *data,int awaitCompletion) 
+void *render_exec_on_thread(RenderCallback callback,void *data,int awaitCompletion) 
 {
-    int result = 0;
+    void *result = 0;
     pthread_cond_t finished_condition;
     pthread_mutex_t finished_mutex;     
     
@@ -106,7 +108,7 @@ int render_exec_on_thread(RenderCallback callback,void *data,int awaitCompletion
     if ( render_is_on_rendering_thread() ) {
       render_error("Warning - exec_on_thread() called while on rendering thread");        
       callback(data);
-      return 1;
+      return (void*) 1;
     }
     
     // allocate memory for mail box entry
@@ -215,12 +217,18 @@ int render_get_viewport_desc_internal(viewport_desc *port)
 int render_get_viewport_desc(viewport_desc *port) 
 {
   log_debug("get_viewport_desc() called");  
-  return render_exec_on_thread(&render_get_viewport_desc_internal,port,1); 
+  return (int) render_exec_on_thread(&render_get_viewport_desc_internal,port,1); 
 }
 
 int render_close_render_internal(void *dummy) 
 {
   log_debug("close_render_internal() called");
+  
+  // close IMG_INIT_PNG
+  if ( initFlags & RENDER_FLAG_PNG_INITIALIZED ) {
+    IMG_Quit();
+  }
+  
   // close font
   if ( initFlags & RENDER_FLAG_TTF_FONT_LOADED) {
     TTF_CloseFont(font);
@@ -346,6 +354,20 @@ int render_init_render_internal(void)
     return 0;
   }
   initFlags |= RENDER_FLAG_TTF_FONT_LOADED;
+  
+  // ----------------
+  // Setup SDL Image
+  // ----------------
+
+ //Initialize PNG loading 
+  int imgFlags = IMG_INIT_PNG; 
+  if( !( IMG_Init( imgFlags ) & imgFlags ) ) 
+  { 
+    render_error( "SDL_image could not initialize! SDL_image Error: %s\n", IMG_GetError() ); 
+    render_close_render();
+    return 0;    
+  }
+  initFlags |= RENDER_FLAG_PNG_INITIALIZED;
   
   render_success();
   
@@ -478,11 +500,24 @@ int render_draw_button_internal_onto(SDL_Surface *surface, button_desc *button) 
   int textWidth;
   int textHeight;
   
-  if ( button->text == NULL ) {
-    render_error("render_draw_button_internal_onto(): Button has no text assigned?");
-    return 0;    
-  }  
-  
+  if ( button->text == NULL ) 
+  {
+    if ( button->image == NULL ) {
+      render_error("render_draw_button_internal_onto(): Button has neither text nor image assigned?");
+      return 0;    
+    }
+    // render image
+    SDL_Rect srcRect = {0,0,button->image->w,button->image->h};
+    SDL_Rect dstRect;
+    dstRect.w = min(button->image->w,button->bounds.w);
+    dstRect.h = min(button->image->h,button->bounds.h);    
+    dstRect.x = button->bounds.x + button->bounds.w/2 - dstRect.w/2;
+    dstRect.y = button->bounds.y + button->bounds.h/2 - dstRect.h/2;
+    
+    return SDL_BlitSurface(button->image,&srcRect,surface,&dstRect) == 0;
+  } 
+  // render text
+    
   int result = TTF_SizeText(font, button->text, &textWidth, &textHeight);
   if ( result != 0 ) {
     log_error("render_draw_button_internal_onto(): Failed to size text\n");
@@ -491,9 +526,8 @@ int render_draw_button_internal_onto(SDL_Surface *surface, button_desc *button) 
   }
   int textX = button->bounds.x + button->bounds.w/2 - textWidth/2;
   int textY = button->bounds.y + button->bounds.h/2 - textHeight/2;
-  
   log_error("render_draw_button_internal_onto(): Rendering text at (%d,%d) with w=%d,h=%d\n",textX,textY,textWidth,textHeight);
- 
+  
   render_text_args *text = calloc(1,sizeof(render_text_args));
   if ( text == NULL ) {
         render_error("render_draw_button_internal_onto(): Failed to alloc memory for render_text_args");
@@ -511,16 +545,16 @@ int render_draw_button_internal_onto(SDL_Surface *surface, button_desc *button) 
   text->color.g = button->textColor.g; 
   text->color.b = button->textColor.b; 
   
-  return render_render_text_internal_onto(surface,text);
+  return render_render_text_internal_onto(surface,text);    
 }
 
 int render_draw_button_internal(button_desc *button) {
   return render_draw_button_internal_onto(scrMain,button);
 }
 
-int  render_draw_button(button_desc *button) {
+int render_draw_button(button_desc *button) {
     log_info("drawing button with %lx",button);
-    return render_exec_on_thread(render_draw_button_internal,button,1);
+    return (int) render_exec_on_thread(render_draw_button_internal,button,1);
 }
 
 /**
@@ -653,5 +687,39 @@ int render_draw_listview_internal(listview_entry *listView)
  */
 int render_draw_listview(listview_entry *listView) 
 {
-   return render_exec_on_thread(render_draw_listview_internal,listView,1);     
+   return (int) render_exec_on_thread(render_draw_listview_internal,listView,1);     
+}
+
+SDL_Surface *render_load_image_internal(char *file) 
+{
+    SDL_Surface* result = NULL; 
+    
+    SDL_Surface* image = IMG_Load( file ); 
+    if( image == NULL ) { 
+        printf( "Unable to load image %s! SDL_image Error: %s\n", file, IMG_GetError() ); 
+    } else { 
+        //Convert surface to screen format 
+        result = SDL_ConvertSurface( image, scrMain->format, SDL_SWSURFACE ); 
+        if( result == NULL ) { 
+          printf( "Unable to optimize image %s! SDL Error: %s\n", file, SDL_GetError() );         
+          result = image;
+        } else {
+          SDL_FreeSurface( image ); 
+        }
+    } 
+    return result;    
+}
+
+SDL_Surface *render_load_image(char *file) 
+{
+    return (SDL_Surface*) render_exec_on_thread(render_load_image_internal,file,1);
+}
+
+void *render_free_surface_internal(SDL_Surface *surface) {
+  SDL_FreeSurface(surface);  
+  return NULL;
+}
+
+void render_free_surface(SDL_Surface *surface) {
+  render_exec_on_thread(render_free_surface_internal,surface,1);
 }
