@@ -135,11 +135,42 @@ static PyObject *myui_add_button(PyObject *self, PyObject *args)
     return PyInt_FromLong(0);   
 }
 
+static PyObject *myui_add_image_button(PyObject *self, PyObject *args)
+{
+    char *imagePath;
+    int buttonX;
+    int buttonY;
+    int buttonWidth;
+    int buttonHeight;
+    PyObject *callback;
+    
+    if (!PyArg_ParseTuple(args, "siiiiO", &imagePath,&buttonX,&buttonY,&buttonWidth,&buttonHeight,&callback)) {      
+        return NULL;
+    }
+    
+    // make sure the callback actually is a python function
+    if (!PyCallable_Check(callback)) {
+        PyErr_SetString(PyExc_TypeError, "Need a callback function to invoke the button!");
+    }
+    else 
+    {
+        call_python(callback,42);
+        int buttonId = mylib_add_image_button(imagePath,buttonX,buttonY,buttonWidth,buttonHeight,myui_clickHandler);        
+        if ( buttonId >= 0 ) 
+        {
+          myui_add_button_handler(buttonId,callback);
+        }
+        return PyInt_FromLong(buttonId);
+    }
+    return PyInt_FromLong(0);   
+}
+
 static PyMethodDef availableMethods[] = 
 {
     {"init",  myui_init, METH_VARARGS,"Initialize library."},
     {"close",  myui_close, METH_VARARGS,"Close library."},
     {"add_button",  myui_add_button, METH_VARARGS,"Add a ui button"},
+    {"add_image_button",  myui_add_image_button, METH_VARARGS,"Add a ui image button"},
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 

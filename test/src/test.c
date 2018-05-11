@@ -46,11 +46,11 @@ int main(int argc, char* args[])
 {
   if ( mylib_init() ) 
   {
-    int buttonId = mylib_add_image_button("/home/tobi/qtcreator_workspace/raspi/test.png",50,50,150,20,buttonHandler);
-    printf("Registered button %d\n",buttonId);
+    // int buttonId = mylib_add_image_button("/home/tobi/qtcreator_workspace/raspi/test.png",50,50,150,20,buttonHandler);
+    // printf("Registered button %d\n",buttonId);
     
-    // SDL_Rect bounds = {10,10,150,150};
-    // int listViewId = mylib_add_listview(&bounds, getLabel, getItemCount, itemClicked);
+    SDL_Rect bounds = {10,10,150,150};
+    int listViewId = mylib_add_listview(&bounds, getLabel, getItemCount, itemClicked);
     sleep(10);
     mylib_close();
     return 0;

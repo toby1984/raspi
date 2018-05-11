@@ -8,7 +8,8 @@ def buttonClicked(buttonId):
 
 uilib.init()
 
-buttonId = uilib.add_button("test",50,50,150,20,buttonClicked)
+# buttonId = uilib.add_image_button("/home/tobi/qtcreator_workspace/raspi/test.png",50,50,150,20,buttonClicked)
+buttonId = uilib.add_button("Hallo Billa!",50,50,150,20,buttonClicked)
 print "Added button "+str(buttonId)
 
 time.sleep(60)
