@@ -5,6 +5,7 @@
 #include "SDL/SDL_gfxPrimitives.h"
 #include "SDL/SDL_getenv.h"
 #include <pthread.h>
+#include "ui_types.h"
 #include "log.h"
 #include <math.h>
 #include <string.h>
@@ -58,6 +59,27 @@ typedef struct mbox_entry
 
 static mbox_entry *mbox_first = NULL;
 static mbox_entry *mbox_last = NULL;
+
+void render_free_element(ui_element *element) 
+{
+  free( element );  
+}
+
+ui_element *render_allocate_element(UIElementType type) 
+{
+    ui_element *element = calloc(1,sizeof(ui_element));
+    if ( ! element ) {
+      log_error("ui_allocate_element(): Failed to allocate memory");      
+      return NULL;  
+    }
+    element->type = UI_BUTTON;
+    
+    ASSIGN_COLOR(&element->borderColor,255,255,255);
+    ASSIGN_COLOR(&element->backgroundColor,128,128,128);
+    ASSIGN_COLOR(&element->foregroundColor,255,255,255);
+    
+    return element;
+}
 
 void render_error(const char* msg,...) 
 {
@@ -200,7 +222,7 @@ int render_is_initialized(void)
  * Fills out a viewport description
  * @return 
  */
-int render_get_viewport_desc_internal(viewport_desc *port) 
+static int render_get_viewport_desc_internal(viewport_desc *port) 
 {
   log_debug("get_viewport_desc_internal() called");   
   port->width = viewportInfo.width;
@@ -220,7 +242,7 @@ int render_get_viewport_desc(viewport_desc *port)
   return (int) render_exec_on_thread(&render_get_viewport_desc_internal,port,1); 
 }
 
-int render_close_render_internal(void *dummy) 
+static int render_close_render_internal(void *dummy) 
 {
   log_debug("close_render_internal() called");
   
@@ -257,7 +279,7 @@ void render_free_render_text_args(render_text_args *args) {
   free(args);
 }
 
-int render_render_text_internal_onto(SDL_Surface *surface,render_text_args *args) 
+static int render_render_text_internal_onto(SDL_Surface *surface,render_text_args *args) 
 {
   SDL_Surface* textSurface = TTF_RenderText_Solid(font, args->text, args->color);
   SDL_Rect dstRect = {args->x,args->y,textSurface->w,textSurface->h};
@@ -271,7 +293,7 @@ int render_render_text_internal_onto(SDL_Surface *surface,render_text_args *args
   return 1;
 } 
 
-int render_render_text_internal(render_text_args *args) 
+static int render_render_text_internal(render_text_args *args) 
 {
   return render_render_text_internal_onto(scrMain,args);
 }  
@@ -288,7 +310,7 @@ void render_render_text(const char *text,int x,int y,SDL_Color color)
   render_exec_on_thread( &render_render_text_internal, args,0);
 }
 
-int render_init_render_internal(void) 
+static int render_init_render_internal(void) 
 {
   log_info("init_render_internal() called \n");
   // --------------------------------------
@@ -392,7 +414,7 @@ void *render_main_event_loop(void* data)
     int terminate = 0;
     while ( ! terminate ) 
     {
-      while ( input_poll_touch(&touchEvent) ) {
+      while ( ! terminate && input_poll_touch(&touchEvent) ) {
           input_invoke_input_handler(&touchEvent);
       }
         
@@ -457,16 +479,18 @@ volatile const char* render_get_error(void) {
  * @param button button to draw
  * @return 0 on error, otherwise success
  */
-int render_draw_button_internal_onto(SDL_Surface *surface, button_desc *button) {
+static int render_draw_button_internal_onto(SDL_Surface *surface, ui_element *element) 
+{  
+  button_entry *button = element->button;
  
   log_error("render_draw_button_internal_onto(): About to render button...\n");
     
-  Sint16 x1 = button->bounds.x;
-  Sint16 y1 = button->bounds.y;
-  Sint16 x2 = button->bounds.x+button->bounds.w;
-  Sint16 y2 = button->bounds.y+button->bounds.h;
+  Sint16 x1 = element->bounds.x;
+  Sint16 y1 = element->bounds.y;
+  Sint16 x2 = element->bounds.x+element->bounds.w;
+  Sint16 y2 = element->bounds.y+element->bounds.h;
   
-  SDL_Color *bgColor = button->pressed ? &button->clickedColor : &button->backgroundColor;
+  SDL_Color *bgColor = button->pressed ? &button->clickedColor : &element->backgroundColor;
   
   if ( button->cornerRadius > 0 ) 
   {
@@ -477,9 +501,9 @@ int render_draw_button_internal_onto(SDL_Surface *surface, button_desc *button) 
                   255);
 
     roundedRectangleRGBA(surface,x1,y1,x2,y2,button->cornerRadius,
-                  button->borderColor.r,
-                  button->borderColor.g,
-                  button->borderColor.b,
+                  element->borderColor.r,
+                  element->borderColor.g,
+                  element->borderColor.b,
                   255);  
   }
   else 
@@ -491,9 +515,9 @@ int render_draw_button_internal_onto(SDL_Surface *surface, button_desc *button) 
                   255);
 
     rectangleRGBA(surface,x1,y1,x2,y2,
-                  button->borderColor.r,
-                  button->borderColor.g,
-                  button->borderColor.b,
+                  element->borderColor.r,
+                  element->borderColor.g,
+                  element->borderColor.b,
                   255);      
   }
   
@@ -509,10 +533,10 @@ int render_draw_button_internal_onto(SDL_Surface *surface, button_desc *button) 
     // render image
     SDL_Rect srcRect = {0,0,button->image->w,button->image->h};
     SDL_Rect dstRect;
-    dstRect.w = min(button->image->w,button->bounds.w);
-    dstRect.h = min(button->image->h,button->bounds.h);    
-    dstRect.x = button->bounds.x + button->bounds.w/2 - dstRect.w/2;
-    dstRect.y = button->bounds.y + button->bounds.h/2 - dstRect.h/2;
+    dstRect.w = min(button->image->w,element->bounds.w);
+    dstRect.h = min(button->image->h,element->bounds.h);    
+    dstRect.x = element->bounds.x + element->bounds.w/2 - dstRect.w/2;
+    dstRect.y = element->bounds.y + element->bounds.h/2 - dstRect.h/2;
     
     return SDL_BlitSurface(button->image,&srcRect,surface,&dstRect) == 0;
   } 
@@ -524,8 +548,8 @@ int render_draw_button_internal_onto(SDL_Surface *surface, button_desc *button) 
     render_error("Failed to size text");
     return 0;    
   }
-  int textX = button->bounds.x + button->bounds.w/2 - textWidth/2;
-  int textY = button->bounds.y + button->bounds.h/2 - textHeight/2;
+  int textX = element->bounds.x + element->bounds.w/2 - textWidth/2;
+  int textY = element->bounds.y + element->bounds.h/2 - textHeight/2;
   log_error("render_draw_button_internal_onto(): Rendering text at (%d,%d) with w=%d,h=%d\n",textX,textY,textWidth,textHeight);
   
   render_text_args *text = calloc(1,sizeof(render_text_args));
@@ -541,18 +565,18 @@ int render_draw_button_internal_onto(SDL_Surface *surface, button_desc *button) 
   }
   text->x = textX;
   text->y = textY;
-  text->color.r = button->textColor.r; 
-  text->color.g = button->textColor.g; 
-  text->color.b = button->textColor.b; 
+  text->color.r = element->foregroundColor.r; 
+  text->color.g = element->foregroundColor.g; 
+  text->color.b = element->foregroundColor.b; 
   
   return render_render_text_internal_onto(surface,text);    
 }
 
-int render_draw_button_internal(button_desc *button) {
+static int render_draw_button_internal(ui_element *button) {
   return render_draw_button_internal_onto(scrMain,button);
 }
 
-int render_draw_button(button_desc *button) {
+static int render_draw_button(ui_element *button) {
     log_info("drawing button with %lx",button);
     return (int) render_exec_on_thread(render_draw_button_internal,button,1);
 }
@@ -592,23 +616,27 @@ SDL_Surface *render_create_surface(int width,int height)
     return surface;
 }
 
-int render_draw_listview_item(SDL_Surface *surface,char *label,int x,int y,int width,int height) 
+static int render_draw_listview_item(SDL_Surface *surface,char *label,int x,int y,int width,int height) 
 {
-  button_desc button;
+  ui_element *element=render_allocate_element(UI_BUTTON);
 
-  button.bounds.x = x;  
-  button.bounds.y = y;  
-  button.bounds.w = width;  
-  button.bounds.h = height;  
+  element->type = UI_BUTTON;
+  element->bounds.x = x;  
+  element->bounds.y = y;  
+  element->bounds.w = width;  
+  element->bounds.h = height;  
+  
+  button_entry button;
+  
+  element->button = &button;
+
   button.cornerRadius = 0;
   button.fontSize = 16;
   button.text = label;
-  ASSIGN_COLOR(&button.borderColor,255,0,0);
-  ASSIGN_COLOR(&button.backgroundColor,0,255,0);
-  ASSIGN_COLOR(&button.textColor,255,0,255);
-  ASSIGN_COLOR(&button.clickedColor,0,255,0);  
   
-  return render_draw_button_internal_onto(surface,&button);
+  int result = render_draw_button_internal_onto(surface,&button);
+  render_free_element(element);
+  return result;
 }
 
 /**
@@ -616,8 +644,10 @@ int render_draw_listview_item(SDL_Surface *surface,char *label,int x,int y,int w
  * @param listView
  * @return 0 on error, otherwise success
  */
-int render_draw_listview_internal(listview_entry *listView) 
+static int render_draw_listview_internal(ui_element *element) 
 {
+  listview_entry *listView = element->listview;
+  
   int returnCode = 1;
   
   // surface we're painting needs to have one more item
@@ -627,7 +657,7 @@ int render_draw_listview_internal(listview_entry *listView)
   int surfaceHeight = (listView->visibleItemCount+1) * LISTVIEW_ITEM_HEIGHT;
   int visibleHeight = listView->visibleItemCount * LISTVIEW_ITEM_HEIGHT;  
   
-  SDL_Surface *surface = render_create_surface(listView->width,surfaceHeight);
+  SDL_Surface *surface = render_create_surface(element->bounds.w,surfaceHeight);
   if ( ! surface ) {
     log_error("listview_internal(): Failed to allocate surface");
     return 0;  
@@ -639,18 +669,18 @@ int render_draw_listview_internal(listview_entry *listView)
   Uint8 b = 128;
   Uint8 a = 255;
   
-  boxRGBA(scrMain,listView->x,listView->y,listView->x+ listView->width,listView->y + visibleHeight,r,g,b,a);   
+  boxRGBA(scrMain,element->bounds.x,element->bounds.y,element->bounds.x + element->bounds.w, element->bounds.y + visibleHeight,r,g,b,a);   
   
   // calculate index of first item to render
   int firstItemIndex = listView->yStartOffset / LISTVIEW_ITEM_HEIGHT;
   
   // draw items
-  int maxIdx = (*listView->itemCountProvider)( listView->listViewId );
+  int maxIdx = (*listView->itemCountProvider)( element->elementId );
   for ( int i = firstItemIndex,len=0 ; i < maxIdx && len < listView->visibleItemCount+1 ; i++,len++) 
   {
-    char *label = (*listView->labelProvider)(listView->listViewId,i);  
+    char *label = (*listView->labelProvider)(element->elementId, i);  
     
-    if ( ! render_draw_listview_item(surface,label,0,len*LISTVIEW_ITEM_HEIGHT,listView->width-1,LISTVIEW_ITEM_HEIGHT) ) 
+    if ( ! render_draw_listview_item(surface,label,0,len*LISTVIEW_ITEM_HEIGHT,element->bounds.w-1,LISTVIEW_ITEM_HEIGHT) ) 
     {
       log_error("render_listview_internal(): Failed to render item %d",i);      
       returnCode = 0;
@@ -661,8 +691,8 @@ int render_draw_listview_internal(listview_entry *listView)
   // blit fraction of surface onto 
   // int SDL_BlitSurface(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rect *dstrect);
   int yOffset = listView->yStartOffset - firstItemIndex * LISTVIEW_ITEM_HEIGHT;
-  SDL_Rect srcRect = { 0 ,yOffset, listView->width, visibleHeight };  
-  SDL_Rect dstRect = { listView->x, listView->y, listView->width, visibleHeight };
+  SDL_Rect srcRect = { 0 ,yOffset, element->bounds.w, visibleHeight };  
+  SDL_Rect dstRect = { element->bounds.x, element->bounds.y, element->bounds.w, visibleHeight };
   if ( 0 != SDL_BlitSurface(surface,&srcRect,scrMain,&dstRect) ) 
   {
     log_error("render_listview_internal(): Failed to blit to destination");
@@ -674,7 +704,7 @@ int render_draw_listview_internal(listview_entry *listView)
   g = 255;
   b = 255;
   a = 255;  
-  rectangleRGBA(scrMain,listView->x,listView->y,listView->x+ listView->width,listView->y + visibleHeight,r,g,b,a);    
+  rectangleRGBA(scrMain,element->bounds.x,element->bounds.y,element->bounds.x+ element->bounds.w, element->bounds.y + visibleHeight,r,g,b,a);    
   
   SDL_FreeSurface(surface);
   return returnCode;
@@ -685,12 +715,12 @@ int render_draw_listview_internal(listview_entry *listView)
  * @param listView
  * @return 0 on error, otherwise success
  */
-int render_draw_listview(listview_entry *listView) 
+static int render_draw_listview(ui_element *listView) 
 {
    return (int) render_exec_on_thread(render_draw_listview_internal,listView,1);     
 }
 
-SDL_Surface *render_load_image_internal(char *file) 
+static SDL_Surface *render_load_image_internal(char *file) 
 {
     SDL_Surface* result = NULL; 
     
@@ -715,11 +745,25 @@ SDL_Surface *render_load_image(char *file)
     return (SDL_Surface*) render_exec_on_thread(render_load_image_internal,file,1);
 }
 
-void *render_free_surface_internal(SDL_Surface *surface) {
+static void *render_free_surface_internal(SDL_Surface *surface) {
   SDL_FreeSurface(surface);  
   return NULL;
 }
 
 void render_free_surface(SDL_Surface *surface) {
   render_exec_on_thread(render_free_surface_internal,surface,1);
+}
+
+int render_draw(ui_element *element) {
+  
+  switch(element->type) {
+    case UI_BUTTON: 
+      render_draw_button(element);
+      break;
+    case UI_LISTVIEW:      
+      render_draw_listview(element);
+      break;
+    default:
+      log_error("render_draw(): Don't know how to draw %d",element->type);
+  }
 }

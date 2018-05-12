@@ -26,21 +26,6 @@ typedef struct viewport_desc {
   int bitsPerPixel;
 } viewport_desc;
 
-typedef struct button_desc 
-{   
-    SDL_Rect bounds;
-    SDL_Color borderColor;
-    SDL_Color backgroundColor;
-    SDL_Color textColor;
-    SDL_Color clickedColor;    
-    int cornerRadius;
-    int roundedCorners;
-    int fontSize;
-    int pressed;
-    char *text;
-    SDL_Surface *image;
-} button_desc;
-
 typedef void* (*RenderCallback)(void*);
 
 void *render_exec_on_thread(RenderCallback callback,void *data,int awaitCompletion);
@@ -57,11 +42,9 @@ void render_text(const char *text,int x,int y,SDL_Color color);
 
 int render_has_error(void);
 
-int render_draw_listview(listview_entry *listView);
-
 volatile const char* render_get_error(void);
 
-int render_draw_button(button_desc *button);
+int render_draw(ui_element *button);
 
 SDL_Surface *render_load_image(char *file);
 

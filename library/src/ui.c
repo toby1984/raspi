@@ -15,181 +15,187 @@ static pthread_mutex_t ui_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int uniqueUIElementId = 1; // must start with 1 as 0 is used to signal an error
 
-/*
- * Buttons
- */
+// all registered UI elements
+static ui_element *uiElements = NULL;
 
-typedef struct button_entry {
-  struct button_entry *next;
-  struct button_entry *prev;
-  int buttonId;
-  ButtonHandler clickHandler;
-  button_desc desc;
-} button_entry;
-
-static button_entry *ui_button_first=NULL;
-static button_entry *ui_button_last=NULL;
-
-// button that is currently pressed down by the user
-// but not released yet
-static button_entry *pressed_button = NULL;
+// UI element that currently receives all input events
+static ui_element *focusedElement = NULL;
 
 /*
- * List views
+ * Data specific to the focused list view (if any)
  */
-
-static listview_entry *listViews = NULL;
-
-static listview_entry *activeListView = NULL;
 static int listViewMaxYDelta = 0;
 static int listViewTouchStartY = -1;
 
-/**
- * Free button entry.
- */
-void ui_free_button_entry(button_entry *entry) {
-    if ( entry->desc.image != NULL ) 
-    {
-      render_free_surface(entry->desc.image);
+ui_element *ui_allocate_element(UIElementType type) 
+{
+    ui_element *element = calloc(1,sizeof(ui_element));
+    if ( ! element ) {
+      log_error("ui_allocate_element(): Failed to allocate memory");      
+      return NULL;  
     }
-    free(entry->desc.text);
+    element->type = UI_BUTTON;
+    
+    ASSIGN_COLOR(&element->borderColor,255,255,255);
+    ASSIGN_COLOR(&element->backgroundColor,128,128,128);
+    ASSIGN_COLOR(&element->foregroundColor,255,255,255);
+    
+    return element;
+}
+
+/**
+ * Frees all memory associated with a button entry.
+ * 
+ * @param entry entry to free
+ */
+static void ui_free_button_entry_nolock(button_entry *entry) 
+{
+    if ( entry->image != NULL ) 
+    {
+      render_free_surface(entry->image);
+    }
+    free(entry->text);
     free(entry);   
 }
 
-void ui_free_all_button_entries(void) 
-{
-  pthread_mutex_lock(&ui_mutex);
-  
-  button_entry *current=ui_button_first;
-  button_entry *next;
-  
-  while ( current ) 
-  {
-      next = current->next;
-      ui_free_button_entry(current);
-      current = next;
-  }
-  ui_button_first = NULL;
-  ui_button_last = NULL;
-  pthread_mutex_unlock(&ui_mutex);   
-}
-
-void ui_free_listview_entry(listview_entry *listview) {
+/**
+ * Frees all memory associated with a listview entry.
+ * @param listview
+ */
+static void ui_free_listview_entry(listview_entry *listview) {
 
   free(listview);  
 }
 
-void ui_free_all_listview_entries(void) 
+/**
+ * Frees all memory associated with a UI element.
+ * @param element
+ */
+static void ui_free_element_nolock(ui_element *current) 
 {
-  listview_entry *next;
-  
-  pthread_mutex_lock(&ui_mutex);
-  listview_entry *current = listViews;
-  while ( current ) 
-  {
-    next=current->next;
-    ui_free_listview_entry(current);
-    current = next;
-  }
-  listViews = NULL;
-  activeListView = NULL;
-  pthread_mutex_unlock(&ui_mutex);  
+    switch( current->type ) 
+    {
+      case UI_BUTTON:
+        ui_free_button_entry_nolock( current->button);        
+        break;        
+      case UI_TEXTFIELD:
+        break;        
+      case UI_LISTVIEW:
+        ui_free_listview_entry_nolock( current->listview );
+        break;
+      default:
+        log_error("ui_free_all(): Don't know how to free type %d",current->type);
+    }
+    free( element );
 }
 
-int ui_add_button_entry(button_entry *entry) {
-    
+/**
+ * Frees all UI elements.
+ */
+void ui_free_all() 
+{
+  pthread_mutex_lock(&ui_mutex);
+  ui_element *current = uiElements;
+  while ( current ) 
+  {
+    ui_element *next = current -> next;
+    ui_free_element_nolock(current);
+    current = next;
+  }
+  uiElements  = NULL;
+  pthread_mutex_unlock(&ui_mutex);
+}
+
+/**
+ * Registers a UI element.
+ * @param type element type
+ * @param elementData element-specific data
+ * @param element ID or zero on error
+ */
+int ui_add_element(ui_element *entry) 
+{    
     pthread_mutex_lock(&ui_mutex);
     
-    int buttonId = uniqueUIElementId;
-    uniqueUIElementId++;
-    entry->buttonId = buttonId;
+    entry->next = uiElements;
+    entry->elementId = uniqueUIElementId++;
     
-    
-    if ( ui_button_last == NULL ) {
-      ui_button_first = entry;    
-      ui_button_last = entry;
-    } else {
-      ui_button_last->next = entry;
-      entry->prev = ui_button_last;
-      ui_button_last = entry;
-    }
+    uiElements = entry;
     
     pthread_mutex_unlock(&ui_mutex);    
-    log_info("add_button: Added button with ID %d\n",buttonId);
+    
+    log_info("ui_add_element: Added element with type %d and ID %d",type,buttonId);
     return buttonId;
 }
 
-int ui_remove_button_entry(button_entry *entry) 
+/**
+ * Removes (discards) a UI element.
+ * @param entry element to discard.
+ */
+void ui_remove_element(ui_element *entry) 
 {
     int removed = 0;
     
     pthread_mutex_lock(&ui_mutex);
     
-    button_entry *current = ui_button_first;
-    while ( current != NULL ) {
-      if ( current == entry ) {
-          if ( ui_button_first == entry ) 
-          {
-            if ( ui_button_first == ui_button_last ) {
-              ui_button_first = NULL;
-              ui_button_last = NULL;
-            } else {
-              ui_button_first = entry -> next;
-              entry->next->prev = NULL;
-            }            
-          } 
-          else if ( ui_button_last == entry ) 
-          {
-            ui_button_last = entry->prev;    
-          } 
-          else {
-            entry->next->prev = entry->prev;
-            entry->prev->next = entry->next;
-          }
-          ui_free_button_entry(entry);
+    ui_element *previous = NULL;    
+    ui_element *current = uiElements;
+    while ( current ) 
+    {
+      if ( current == entry ) 
+      {
+          previous->next = current->next;
+          ui_free_element_nolock( current );
           removed = 1;
           break;
       }
+      previous = current;
+      current = current->next;
     }
     
     pthread_mutex_unlock(&ui_mutex);
     if ( ! removed ) {
-      log_error("Failed to remove button entry %ld\n",entry);    
+      log_error("Failed to remove entry with type %d and ID %d",entry->type,entry->elementId);    
     }
-    return removed;
 }
 
 #define CONTAINS(bounds,x,y) (( x >= (bounds)->x && y >= (bounds)->y && x <= ((bounds)->x + (bounds)->w) && y <= ((bounds)->y + (bounds)->h) ) ? 1 : 0)
 
-button_entry *ui_find_button_nolock(int x,int y) 
+/**
+ * Finds the UI element at the given coordinates while NOT aquiring the global lock.
+ * @param x
+ * @param y
+ * @return UI element or NULL
+ */
+static ui_element *ui_find_element_nolock(int x,int y) 
 {
-    button_entry *result = NULL;
-    SDL_Rect *bounds;
-    
-    button_entry *current = ui_button_first;
-    while ( current != NULL ) {
-        bounds = &current->desc.bounds;
-        if ( CONTAINS(bounds,x,y) ) {
-          result = current;
-          break;
-        }
-        current = current->next;
+  ui_element * result = NULL;
+  
+  ui_element *current = uiElements;
+  while ( current ) 
+  {
+    if ( CONTAINS(&current->bounds,x,y) ) 
+    {
+      result = current;
+      break;
     }
-    return result;
+    current = current->next;
+  }
+  return result;
 }
 
-button_entry *ui_find_button(int x,int y) 
+/**
+ * Finds the UI element at the given coordinates.
+ * 
+ * @param x
+ * @param y
+ * @return UI element or NULL
+ */
+ui_element *ui_find_element(int x,int y) 
 {
-    pthread_mutex_lock(&ui_mutex);
-    button_entry *result = ui_find_button_nolock(x,y);
-    pthread_mutex_unlock(&ui_mutex);          
-    return result;
-}
-
-void assign_color(SDL_Color *color,Uint8 r,Uint8 g, Uint8 b) {
-   color->r=r;
-   color->g=g;
-   color->b=b;
+  pthread_mutex_lock(&ui_mutex);
+  ui_element * result = ui_find_element_nolock(x,y);
+  pthread_mutex_unlock(&ui_mutex);
+  return result;
 }
 
 /**
@@ -203,14 +209,25 @@ void assign_color(SDL_Color *color,Uint8 r,Uint8 g, Uint8 b) {
  */
 int ui_add_button(char *text,SDL_Rect *bounds,ButtonHandler clickHandler) 
 {
-    button_entry *entry = calloc(1,sizeof(button_entry));
-    if ( entry == NULL ) {
-        return 0;
+    ui_element *element = calloc(1,sizeof(ui_element));
+    if ( ! element ) {
+      log_error("ui_add_button(): Failed to allocate memory");      
+      return 0;  
     }
+    element->type = UI_BUTTON;
+    
+    button_entry *entry = calloc(1,sizeof(button_entry));
+    if ( entry == NULL ) 
+    {
+      free( 
+      log_error("ui_add_button(): Failed to allocate memory");
+      return 0;
+    }
+    element->button = entry;
     
     entry->clickHandler = clickHandler;
-    entry->desc.pressed=0;       
-    entry->desc.cornerRadius = 3;
+    entry->pressed=0;       
+    entry->cornerRadius = 3;
     entry->desc.bounds = *bounds;
     ASSIGN_COLOR(&entry->desc.borderColor,255,255,255);
     ASSIGN_COLOR(&entry->desc.backgroundColor,128,128,128);
@@ -219,13 +236,23 @@ int ui_add_button(char *text,SDL_Rect *bounds,ButtonHandler clickHandler)
     entry->desc.text = strdup(text);
     
     int result = render_draw_button(&entry->desc);
-    if ( result ) {
-      return ui_add_button_entry(entry);
+    if ( result ) 
+    {
+      ui_element *element = ui_add_element(UIElementType.BUTTON,entry);
+      if ( element ) 
+      {
+        return element->elementId;  
+      }
+      log_error("ui_add_button(): Failed to add button");         
+    } else {
+      log_error("ui_add_button(): Failed to render button");      
     }
-    return result;
+    ui_free_button_entry_nolock(entry);
+    return 0;
 }
 
-int ui_add_image_button(char *image,SDL_Rect *bounds,ButtonHandler clickHandler) {
+int ui_add_image_button(char *image,SDL_Rect *bounds,ButtonHandler clickHandler) 
+{
     button_entry *entry = calloc(1,sizeof(button_entry));
     if ( entry == NULL ) {
         return 0;
@@ -241,61 +268,21 @@ int ui_add_image_button(char *image,SDL_Rect *bounds,ButtonHandler clickHandler)
     ASSIGN_COLOR(&entry->desc.clickedColor,255,255,255);
     entry->desc.image = render_load_image(image);
     
-    if ( entry->desc.image == NULL ) {
-      free(entry);
-      return 0;    
+    if ( entry->desc.image ) 
+    {
+      if ( render_draw_button(&entry->desc) ) 
+      {
+        ui_element *element = ui_add_element(UIElementType.BUTTON,entry);        
+        if ( element ) {
+          return element->elementId;
+        }
+      }      
     }
-    
-    int result = render_draw_button(&entry->desc);
-    if ( result ) {
-      return ui_add_button_entry(entry);
-    }
-    return result;    
+    ui_free_button_entry_nolock(entry);
+    return 0;    
 }
 
 // ================================================
-
-/**
- * Finds a listview by screen coordinates.
- * 
- * @param x
- * @param y
- * @return listview_entry or NULL
- */
-listview_entry *ui_find_listview_nolock(int x,int y) 
-{
-  listview_entry *result = NULL;
-  
-  listview_entry *current = listViews;
-  listview_entry *next;
-  
-  SDL_Rect bounds;
-  
-  while ( current ) 
-  {
-    next = current -> next;
-    bounds.x = current ->x;
-    bounds.y = current ->y;
-    bounds.w = current ->width;
-    bounds.h = current ->visibleItemCount* LISTVIEW_ITEM_HEIGHT;
-    if ( CONTAINS(&bounds,x,y) ) 
-    {
-      result = current;
-      break;
-    }
-    current = next;
-  }
-  
-  return result;  
-}
-
-listview_entry *ui_find_listview(int x,int y) 
-{
-  pthread_mutex_lock(&ui_mutex);
-  listview_entry *result = ui_find_listview_nolock(x,y);
-  pthread_mutex_unlock(&ui_mutex);  
-  return result;  
-}
 
 /**
  * Adds a new button.
@@ -311,14 +298,9 @@ int ui_add_listview(SDL_Rect *bounds,ListViewLabelProvider labelProvider, ListVi
     listview_entry *entry = calloc(1,sizeof(listview_entry));
     if ( ! entry  ) {
       log_error("ui_add_listview(): Failed to allocate entry");
-      return -1;  
+      return 0;  
     }
     
-    pthread_mutex_lock(&ui_mutex);
-    
-    entry->listViewId = uniqueUIElementId;
-    uniqueUIElementId++;
-        
     entry->labelProvider = labelProvider;
     entry->itemCountProvider = itemCountProvider;
     entry->clickCallback = clickCallback;
@@ -329,94 +311,81 @@ int ui_add_listview(SDL_Rect *bounds,ListViewLabelProvider labelProvider, ListVi
     entry->yStartOffset = 15;
     entry->visibleItemCount=5;
     
-    if ( listViews == NULL ) {
-      entry->next = NULL;
-      listViews = entry;
-    } else {
-      entry->next = listViews;
-      listViews = entry;
+    if ( render_draw_listview(entry) ) 
+    {
+      ui_element *element = ui_add_element(UIElementType.LISTVIEW,entry);
+      if ( element ) 
+      {
+        return element->elementId;
+      }
     }
-    
-    int result = render_draw_listview(entry);
-    
-    pthread_mutex_unlock(&ui_mutex);    
-    return result;
+
+    ui_free_listview_entry(entry);  
+    return 0;
 }
 
 // ======================================== END listview ==================
 
-void ui_handle_touch_event_button(button_entry *button,TouchEvent *event) 
+void ui_handle_touch_event_button(ui_element *element,TouchEvent *event) 
 {
-  if ( event->type == TOUCH_START ) {
-      button_entry *pressed = button;
+  button_entry *button = element == NULL ? NULL : element->button;
+  button_entry *focusedButton = focusedElement == NULL ? NULL : focusedElement->button;
+  
+  if ( event->type == TOUCH_START ) 
+  {
       log_info("ui_handle_touch_event_button(): Clicked button");
-      if ( pressed != NULL ) 
-      {        
-        if ( pressed_button ) {
-          pressed_button->desc.pressed = 0;
-          log_info("rendering button as NOT pressed (TOUCH_START)\n");          
-          render_draw_button(&pressed_button->desc);
-        }
+      if ( focusedButton ) {
+        focusedButton->desc.pressed = 0;
+        log_info("rendering button as NOT pressed (TOUCH_START)\n");          
+        render_draw_button(&focusedButton->desc);
+      }
+      
+      if ( button != NULL ) {
         pressed->desc.pressed = 1;
-        pressed_button = pressed;    
+        focusedElement = element;    
         log_info("rendering button as pressed\n");           
-        render_draw_button(&pressed_button->desc);        
+        render_draw_button(&button->desc);        
       }
   } 
   else if ( event->type == TOUCH_STOP ) 
   {
-      button_entry *released = button;
-      if ( pressed_button != NULL ) 
+      if ( focusedButton != NULL ) 
       {
-        pressed_button->desc.pressed = 0;
+        focusedButton->desc.pressed = 0;
         log_info("rendering button as NOT pressed (TOUCH_STOP)\n");            
-        render_draw_button(&pressed_button->desc);           
+        render_draw_button(&focusedButton->desc);           
         
-        if ( released != NULL && pressed_button == released ) 
+        if ( button != NULL && focusedButton == button ) 
         {
-          log_debug("Detected click on '%s'\n",pressed_button->desc.text);
-          pressed_button->clickHandler(pressed_button->buttonId);   
+          log_debug("Detected click on '%s'\n",focusedButton->desc.text);
+          focusedButton->clickHandler(focusedButton->buttonId);   
         }        
-        pressed_button = NULL;    
+        
+        focusedElement = NULL;    
       }
   } 
   else if ( event->type == TOUCH_CONTINUE ) 
   {
-    button_entry *current = button;    
-    if ( pressed_button != NULL && pressed_button != current ) 
+    if ( focusedButton != NULL ) 
     {    
-        pressed_button->desc.pressed = 0;
-        log_info("rendering button as NOT pressed (TOUCH_CONTINUE)\n");            
-        render_draw_button(&pressed_button->desc);           
-        pressed_button = NULL;       
+        if ( button == NULL || button != focusedButton ) 
+        {
+          focusedButton->desc.pressed = 0;
+          log_info("rendering button as NOT pressed (TOUCH_CONTINUE)\n");            
+          render_draw_button(&focusedButton->desc);           
+          focusedElement = NULL;       
+        }
     }
   }  
   
   pthread_mutex_unlock(&ui_mutex);  
 }
 
-  /*
-typedef struct listview_entry
+void ui_handle_touch_event_listview(ui_element *element, TouchEvent *event) 
 {
-  struct listview_entry *next;
-  int listViewId;
-  ListViewLabelProvider labelProvider;
-  ListViewItemCountProvider itemCountProvider;
-  ListViewClickCallback clickCallback;
-  int x;
-  int y;
-  int width;
-  int visibleItemCount;
-  int yStartOffset;  
-} listview_entry;
-   
-static listview_entry *activeListView = NULL;
-static int listViewMaxYDelta = 0;
-static int listViewTouchStartY = -1;
-*/ 
-
-void ui_handle_touch_event_listview(listview_entry *listview, TouchEvent *event) 
-{
+  listview_entry *listview = element == NULL ? NULL : element->listview;
+  listview_entry *focusedListView = focusedElement == NULL ? NULL : focusedElement->listview;
+  
   log_info("ui_handle_touch_event_listview(): listview %d clicked",listview->listViewId);
   
   int listViewId = listview->listViewId;
@@ -425,20 +394,20 @@ void ui_handle_touch_event_listview(listview_entry *listview, TouchEvent *event)
   
   if ( event->type == TOUCH_START ) 
   {
-    activeListView = listview;
+    focusedElement = element;
     listViewMaxYDelta = 0;
     listViewTouchStartY = event->y;
   } 
   else if ( event->type == TOUCH_STOP ) 
   {
-    if ( activeListView != NULL && listViewMaxYDelta <= LISTVIEW_CLICK_MAXDELTA_Y ) 
+    if ( focusedListView != NULL && listViewMaxYDelta <= LISTVIEW_CLICK_MAXDELTA_Y ) 
     {
       // calculate item index
       int realY = (listViewTouchStartY - listview->y) + listview->yStartOffset;
       clickedItemIdx = ( realY / LISTVIEW_ITEM_HEIGHT ); 
       callbackToInvoke = listview->clickCallback;
     }
-    activeListView = NULL;
+    focusedElement = NULL;
     listViewMaxYDelta = 0;
     listViewTouchStartY = event->y;    
   } 
@@ -474,27 +443,37 @@ void ui_handle_touch_event_listview(listview_entry *listview, TouchEvent *event)
   }
 }
 
-
 void ui_handle_touch_event(TouchEvent *event) 
 {
-  log_info("ui_handle_touch invoked\n");
+  log_info("ui_handle_touch_event(): Called");
   
   pthread_mutex_lock(&ui_mutex);
   
-  button_entry *button = ui_find_button_nolock(event->x,event->y);
-  if ( button != NULL ) 
+  ui_element *element;
+  if ( focusedElement != NULL ) 
   {
-    // Function UNLOCKS mutex    
-    ui_handle_touch_event_button(button,event);
-    return;
+    element = focusedElement;
   } 
-
-  listview_entry *listview = ui_find_listview_nolock(event->x,event->y);
-  if ( listview != NULL ) 
+  else 
   {
-    // Function UNLOCKS mutex
-    ui_handle_touch_event_listview(listview,event);
-    return;
+    element = ui_find_element_nolock(event->x,event->y);
+  }
+  
+  if ( element ) 
+  {
+    switch(element->type) 
+    {
+      case UIElementType.BUTTON:
+        // Function UNLOCKS mutex          
+        ui_handle_touch_event_button((button_entry*) element->elementData,event);
+        return;
+      case UIElementType.LISTVIEW:
+        // Function UNLOCKS mutex
+        ui_handle_touch_event_listview(listview,event);
+        return;        
+      default:
+        log_error("ui_handle_touch_event(): Unhandled element type %d",element->type);
+    }
   }
   pthread_mutex_unlock(&ui_mutex);
 }
@@ -511,7 +490,5 @@ int ui_init(void)
 void ui_close(void) 
 {
   render_close_render();   
-  ui_free_all_button_entries();
-  ui_free_all_listview_entries();  
-  
+  ui_free_all();  
 }

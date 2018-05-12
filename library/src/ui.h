@@ -2,39 +2,9 @@
 #define UI_H
 
 #include "SDL/SDL.h"
+#include "ui_types.h"
 
 #define LISTVIEW_CLICK_MAXDELTA_Y 3
-
-// parameter is the button ID of the clicked button
-typedef void (*ButtonHandler)(int);
-
-// Returns the label to display for item Y of listview X. Item IDs start with 0.
-// char* callback(listview_id,item id)
-typedef char* (*ListViewLabelProvider)(int,int);
-
-// returns the number of items this listview should display
-// int callback(listview_id)
-typedef int (*ListViewItemCountProvider)(int);
-
-// invoked whenever the user selects an item from a
-// list view. Item IDs start with zero.
-// void callback(listview_id,item id)
-typedef void (*ListViewClickCallback)(int,int);
-
-typedef struct listview_entry
-{
-  struct listview_entry *next;
-  int listViewId;
-  ListViewLabelProvider labelProvider;
-  ListViewItemCountProvider itemCountProvider;
-  ListViewClickCallback clickCallback;
-  int x;
-  int y;
-  int width;
-  int visibleItemCount;
-  int yStartOffset;  
-} listview_entry;
-
 
 /**
  * Adds a new button that displays a text label.
@@ -70,5 +40,16 @@ int ui_run_test(void);
 int ui_init(void);
 
 void ui_close(void);
+
+/**
+ * Add textfield
+ * 
+ * @param bounds textfield boundary
+ * @param text initial text
+ * @param callback callback to invoke after the user changed the textfield
+ * 
+ * @return textfield ID
+ */
+int ui_add_textfield(SDL_Rect bounds,char *text,TextFieldCallback callback);
 
 #endif

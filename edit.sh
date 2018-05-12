@@ -1,2 +1,2 @@
 #!/bin/bash
-nohup kate `find . -name '*.c' -o -name '*.h'` &
+nohup kate `find library -name '*.c' -o -name '*.h'` &
