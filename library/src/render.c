@@ -60,25 +60,71 @@ typedef struct mbox_entry
 static mbox_entry *mbox_first = NULL;
 static mbox_entry *mbox_last = NULL;
 
-void render_free_element(ui_element *element) 
-{
-  free( element );  
-}
-
 ui_element *render_allocate_element(UIElementType type) 
 {
-    ui_element *element = calloc(1,sizeof(ui_element));
-    if ( ! element ) {
-      log_error("ui_allocate_element(): Failed to allocate memory");      
-      return NULL;  
+  ui_element *element = calloc(1,sizeof(ui_element));
+  if ( ! element ) {
+    log_error("ui_allocate_element(): Failed to allocate memory");      
+    return NULL;  
+  }
+  element->type = type;
+  
+  ASSIGN_COLOR(&element->borderColor,255,255,255);
+  ASSIGN_COLOR(&element->backgroundColor,128,128,128);
+  ASSIGN_COLOR(&element->foregroundColor,255,255,255);
+  
+  return element;
+}
+
+/**
+ * Frees all memory associated with a button entry.
+ * 
+ * @param entry entry to free
+ */
+static void render_free_button_entry(button_entry *entry) 
+{
+  if ( entry->image ) 
+  {
+    render_free_surface(entry->image);
+  }
+  if ( entry->text ) {
+    free(entry->text);
+  }
+  free(entry);   
+}
+
+/**
+ * Frees all memory associated with a listview entry.
+ * @param listview
+ */
+static void render_free_listview_entry(listview_entry *listview) 
+{
+  free(listview);  
+}
+
+/**
+ * Frees all memory associated with a UI element.
+ * @param element
+ */
+void render_free_element(ui_element *current) 
+{
+  if ( current -> elementData ) 
+  {
+    switch( current->type ) 
+    {
+      case UI_BUTTON:
+        render_free_button_entry( current->button );        
+        break;        
+      case UI_TEXTFIELD:
+        break;        
+      case UI_LISTVIEW:
+        render_free_listview_entry( current->listview );
+        break;
+      default:
+        log_error("ui_free_all(): Don't know how to free type %d",current->type);
     }
-    element->type = UI_BUTTON;
-    
-    ASSIGN_COLOR(&element->borderColor,255,255,255);
-    ASSIGN_COLOR(&element->backgroundColor,128,128,128);
-    ASSIGN_COLOR(&element->foregroundColor,255,255,255);
-    
-    return element;
+  }
+  free(current);
 }
 
 void render_error(const char* msg,...) 
@@ -122,63 +168,61 @@ void render_assert_rendering_thread(void) {
  */
 void *render_exec_on_thread(RenderCallback callback,void *data,int awaitCompletion) 
 {
-    void *result = 0;
-    pthread_cond_t finished_condition;
-    pthread_mutex_t finished_mutex;     
+  void *result = 0;
+  pthread_cond_t finished_condition;
+  pthread_mutex_t finished_mutex;     
+  
+  log_debug("exec_on_thread() called");   
+  if ( render_is_on_rendering_thread() ) {
+    return callback(data);
+  }
+  
+  // allocate memory for mail box entry
+  mbox_entry *newEntry = calloc(1,sizeof(mbox_entry));
+  if ( newEntry == NULL ) {
+    return 0;  
+  }
+  if ( awaitCompletion ) 
+  {
+    newEntry->flags |= MBOX_FLAG_FREED_BY_CREATOR;   
     
-    log_debug("exec_on_thread() called");   
-    if ( render_is_on_rendering_thread() ) {
-      render_error("Warning - exec_on_thread() called while on rendering thread");        
-      callback(data);
-      return (void*) 1;
-    }
+    render_init_condition(&finished_mutex,&finished_condition);
     
-    // allocate memory for mail box entry
-    mbox_entry *newEntry = calloc(1,sizeof(mbox_entry));
-    if ( newEntry == NULL ) {
-      return 0;  
-    }
-    if ( awaitCompletion ) 
-    {
-      newEntry->flags |= MBOX_FLAG_FREED_BY_CREATOR;   
-      
-      render_init_condition(&finished_mutex,&finished_condition);
-      
-      newEntry->finished_condition = &finished_condition;
-      newEntry->finished_mutex = &finished_mutex;      
-    }
-    
-    newEntry->func = callback;
-    newEntry->data = data;
+    newEntry->finished_condition = &finished_condition;
+    newEntry->finished_mutex = &finished_mutex;      
+  }
+  
+  newEntry->func = callback;
+  newEntry->data = data;
 
-    // insert 
-    pthread_mutex_lock(&mbox_mutex);
+  // insert 
+  pthread_mutex_lock(&mbox_mutex);
+  
+  if ( mbox_first == NULL ) 
+  {
+    mbox_first = newEntry;
+    mbox_last = newEntry;
+  }
+  else 
+  {
+    mbox_last->next = newEntry;
+    newEntry->prev=mbox_last;
+    mbox_last = newEntry;
+  }
+  
+  pthread_mutex_unlock(&mbox_mutex);   
+  
+  if ( awaitCompletion ) 
+  {
+    log_debug("Awaiting callback completion ...\n");
     
-    if ( mbox_first == NULL ) 
-    {
-      mbox_first = newEntry;
-      mbox_last = newEntry;
-    }
-    else 
-    {
-      mbox_last->next = newEntry;
-      newEntry->prev=mbox_last;
-      mbox_last = newEntry;
-    }
+    render_wait_condition(&finished_mutex,&finished_condition);
     
-    pthread_mutex_unlock(&mbox_mutex);   
-    
-    if ( awaitCompletion ) 
-    {
-      log_debug("Awaiting callback completion ...\n");
-      
-      render_wait_condition(&finished_mutex,&finished_condition);
-      
-      log_debug("Callback completed.\n");      
-      result = newEntry->result;
-      free( newEntry );
-    }
-    return result;
+    log_debug("Callback completed.\n");      
+    result = newEntry->result;
+    free( newEntry );
+  }
+  return result;
 }
 
 /**
@@ -279,7 +323,7 @@ void render_free_render_text_args(render_text_args *args) {
   free(args);
 }
 
-static int render_render_text_internal_onto(SDL_Surface *surface,render_text_args *args) 
+static int render_render_text_onto_internal(SDL_Surface *surface,render_text_args *args) 
 {
   SDL_Surface* textSurface = TTF_RenderText_Solid(font, args->text, args->color);
   SDL_Rect dstRect = {args->x,args->y,textSurface->w,textSurface->h};
@@ -295,7 +339,7 @@ static int render_render_text_internal_onto(SDL_Surface *surface,render_text_arg
 
 static int render_render_text_internal(render_text_args *args) 
 {
-  return render_render_text_internal_onto(scrMain,args);
+  return render_render_text_onto_internal(scrMain,args);
 }  
 
 void render_render_text(const char *text,int x,int y,SDL_Color color) 
@@ -398,48 +442,48 @@ static int render_init_render_internal(void)
 
 void *render_main_event_loop(void* data) 
 {
-    TouchEvent touchEvent;
-    
-    initResult = render_init_render_internal();
+  TouchEvent touchEvent;
+  
+  initResult = render_init_render_internal();
 
-    render_signal_condition(&init_mutex,&init_condition);
-    
-    if ( ! initResult ) {
-      render_error("init_render_internal() failed");        
-      return 0;
-    }
-    
-    log_info("Initializing rendering on separate thread DONE...");      
-    
-    int terminate = 0;
-    while ( ! terminate ) 
-    {
-      while ( ! terminate && input_poll_touch(&touchEvent) ) {
-          input_invoke_input_handler(&touchEvent);
-      }
-        
-      mbox_entry *entry = NULL;
-      while ( ! terminate && ( entry = render_poll_mbox() ) ) 
-      {
-          if ( entry->func == &render_close_render_internal) {
-            log_info("Rendering thread shutting down...");              
-            terminate = 1;  
-          }
-         entry->result = entry->func(entry->data);
-          
-          if ( (entry->flags & MBOX_FLAG_FREED_BY_CREATOR) != 0 ) { // code awaiting completion will free the entry
-            render_signal_condition(entry->finished_mutex,entry->finished_condition);  
-          } else {
-            free(entry);
-          }
-      }           
-      if ( ! terminate ) {
-        SDL_Flip(scrMain);       
-        SDL_Delay(16);        
-      }
-    }
-    log_info("Rendering thread terminated.");      
+  render_signal_condition(&init_mutex,&init_condition);
+  
+  if ( ! initResult ) {
+    render_error("init_render_internal() failed");        
     return 0;
+  }
+  
+  log_info("Initializing rendering on separate thread DONE...");      
+  
+  int terminate = 0;
+  while ( ! terminate ) 
+  {
+    while ( ! terminate && input_poll_touch(&touchEvent) ) {
+        input_invoke_input_handler(&touchEvent);
+    }
+      
+    mbox_entry *entry = NULL;
+    while ( ! terminate && ( entry = render_poll_mbox() ) ) 
+    {
+        if ( entry->func == &render_close_render_internal) {
+          log_info("Rendering thread shutting down...");              
+          terminate = 1;  
+        }
+        entry->result = entry->func(entry->data);
+        
+        if ( (entry->flags & MBOX_FLAG_FREED_BY_CREATOR) != 0 ) { // code awaiting completion will free the entry
+          render_signal_condition(entry->finished_mutex,entry->finished_condition);  
+        } else {
+          free(entry);
+        }
+    }           
+    if ( ! terminate ) {
+      SDL_Flip(scrMain);       
+      SDL_Delay(16);        
+    }
+  }
+  log_info("Rendering thread terminated.");      
+  return 0;
 }
 
 int render_init_render(void) 
@@ -465,7 +509,7 @@ int render_init_render(void)
 }
 
 int render_has_error(void) {
-    return lastRenderError != NULL;
+  return lastRenderError != NULL;
 }
 
 volatile const char* render_get_error(void) {
@@ -479,11 +523,11 @@ volatile const char* render_get_error(void) {
  * @param button button to draw
  * @return 0 on error, otherwise success
  */
-static int render_draw_button_internal_onto(SDL_Surface *surface, ui_element *element) 
+static int render_draw_button_onto_internal(SDL_Surface *surface, ui_element *element) 
 {  
   button_entry *button = element->button;
  
-  log_error("render_draw_button_internal_onto(): About to render button...\n");
+  log_error("render_draw_button_onto_internal(): About to render button...\n");
     
   Sint16 x1 = element->bounds.x;
   Sint16 y1 = element->bounds.y;
@@ -527,7 +571,7 @@ static int render_draw_button_internal_onto(SDL_Surface *surface, ui_element *el
   if ( button->text == NULL ) 
   {
     if ( button->image == NULL ) {
-      render_error("render_draw_button_internal_onto(): Button has neither text nor image assigned?");
+      render_error("render_draw_button_onto_internal(): Button has neither text nor image assigned?");
       return 0;    
     }
     // render image
@@ -544,22 +588,22 @@ static int render_draw_button_internal_onto(SDL_Surface *surface, ui_element *el
     
   int result = TTF_SizeText(font, button->text, &textWidth, &textHeight);
   if ( result != 0 ) {
-    log_error("render_draw_button_internal_onto(): Failed to size text\n");
+    log_error("render_draw_button_onto_internal(): Failed to size text\n");
     render_error("Failed to size text");
     return 0;    
   }
   int textX = element->bounds.x + element->bounds.w/2 - textWidth/2;
   int textY = element->bounds.y + element->bounds.h/2 - textHeight/2;
-  log_error("render_draw_button_internal_onto(): Rendering text at (%d,%d) with w=%d,h=%d\n",textX,textY,textWidth,textHeight);
+  log_error("render_draw_button_onto_internal(): Rendering text at (%d,%d) with w=%d,h=%d\n",textX,textY,textWidth,textHeight);
   
   render_text_args *text = calloc(1,sizeof(render_text_args));
   if ( text == NULL ) {
-        render_error("render_draw_button_internal_onto(): Failed to alloc memory for render_text_args");
+    render_error("render_draw_button_onto_internal(): Failed to alloc memory for render_text_args");
     return 0;    
   }
   text->text = strdup(button->text);
   if ( text->text == NULL ) {
-    render_error("render_draw_button_internal_onto(): strdup() failed");    
+    render_error("render_draw_button_onto_internal(): strdup() failed");    
     free(text);
     return 0;
   }
@@ -569,11 +613,11 @@ static int render_draw_button_internal_onto(SDL_Surface *surface, ui_element *el
   text->color.g = element->foregroundColor.g; 
   text->color.b = element->foregroundColor.b; 
   
-  return render_render_text_internal_onto(surface,text);    
+  return render_render_text_onto_internal(surface,text);    
 }
 
 static int render_draw_button_internal(ui_element *button) {
-  return render_draw_button_internal_onto(scrMain,button);
+  return render_draw_button_onto_internal(scrMain,button);
 }
 
 static int render_draw_button(ui_element *button) {
@@ -589,52 +633,54 @@ static int render_draw_button(ui_element *button) {
  */
 SDL_Surface *render_create_surface(int width,int height) 
 {
-     /* Create a 32-bit surface with the bytes of each pixel in R,G,B,A order,
-       as expected by OpenGL for textures */
-     
-    Uint32 rmask, gmask, bmask, amask;
+  /* Create a 32-bit surface with the bytes of each pixel in R,G,B,A order,
+  as expected by OpenGL for textures */
+    
+  Uint32 rmask, gmask, bmask, amask;
 
-    /* SDL interprets each pixel as a 32-bit number, so our masks must depend
-       on the endianness (byte order) of the machine */
+  /* SDL interprets each pixel as a 32-bit number, so our masks must depend
+      on the endianness (byte order) of the machine */
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
-    rmask = 0xff000000;
-    gmask = 0x00ff0000;
-    bmask = 0x0000ff00;
-    amask = 0x000000ff;
+  rmask = 0xff000000;
+  gmask = 0x00ff0000;
+  bmask = 0x0000ff00;
+  amask = 0x000000ff;
 #else
-    rmask = 0x000000ff;
-    gmask = 0x0000ff00;
-    bmask = 0x00ff0000;
-    amask = 0xff000000;
+  rmask = 0x000000ff;
+  gmask = 0x0000ff00;
+  bmask = 0x00ff0000;
+  amask = 0xff000000;
 #endif
 
-    SDL_Surface *surface = SDL_CreateRGBSurface(SDL_SWSURFACE, width, height, 32,
-                                   rmask, gmask, bmask, amask);
-    if(surface == NULL) {
-        log_error("CreateRGBSurface failed: %s\n", SDL_GetError());
-    } 
-    return surface;
+  SDL_Surface *surface = SDL_CreateRGBSurface(SDL_SWSURFACE, width, height, 32,
+                                  rmask, gmask, bmask, amask);
+  if(surface == NULL) {
+      log_error("CreateRGBSurface failed: %s\n", SDL_GetError());
+  } 
+  return surface;
 }
 
-static int render_draw_listview_item(SDL_Surface *surface,char *label,int x,int y,int width,int height) 
+static int render_draw_listview_item_internal(SDL_Surface *surface,char *label,int x,int y,int width,int height) 
 {
-  ui_element *element=render_allocate_element(UI_BUTTON);
+  int result = 0;
+  
+  ui_element *element = render_allocate_element(UI_BUTTON);
 
-  element->type = UI_BUTTON;
   element->bounds.x = x;  
   element->bounds.y = y;  
   element->bounds.w = width;  
   element->bounds.h = height;  
   
-  button_entry button;
+  button_entry *button = calloc(1,sizeof(button_entry));
+  if ( button ) 
+  {
+    element->button = button;
+    button->cornerRadius = 0;
+    button->fontSize = 16;
+    button->text = strdup(label);
   
-  element->button = &button;
-
-  button.cornerRadius = 0;
-  button.fontSize = 16;
-  button.text = label;
-  
-  int result = render_draw_button_internal_onto(surface,&button);
+    result = render_draw_button_onto_internal(surface,element);
+  }
   render_free_element(element);
   return result;
 }
@@ -680,7 +726,7 @@ static int render_draw_listview_internal(ui_element *element)
   {
     char *label = (*listView->labelProvider)(element->elementId, i);  
     
-    if ( ! render_draw_listview_item(surface,label,0,len*LISTVIEW_ITEM_HEIGHT,element->bounds.w-1,LISTVIEW_ITEM_HEIGHT) ) 
+    if ( ! render_draw_listview_item_internal(surface,label,0,len*LISTVIEW_ITEM_HEIGHT,element->bounds.w-1,LISTVIEW_ITEM_HEIGHT) ) 
     {
       log_error("render_listview_internal(): Failed to render item %d",i);      
       returnCode = 0;
@@ -722,27 +768,27 @@ static int render_draw_listview(ui_element *listView)
 
 static SDL_Surface *render_load_image_internal(char *file) 
 {
-    SDL_Surface* result = NULL; 
-    
-    SDL_Surface* image = IMG_Load( file ); 
-    if( image == NULL ) { 
-        printf( "Unable to load image %s! SDL_image Error: %s\n", file, IMG_GetError() ); 
-    } else { 
-        //Convert surface to screen format 
-        result = SDL_ConvertSurface( image, scrMain->format, SDL_SWSURFACE ); 
-        if( result == NULL ) { 
-          printf( "Unable to optimize image %s! SDL Error: %s\n", file, SDL_GetError() );         
-          result = image;
-        } else {
-          SDL_FreeSurface( image ); 
-        }
-    } 
-    return result;    
+  SDL_Surface* result = NULL; 
+  
+  SDL_Surface* image = IMG_Load( file ); 
+  if( image == NULL ) { 
+      printf( "Unable to load image %s! SDL_image Error: %s\n", file, IMG_GetError() ); 
+  } else { 
+      //Convert surface to screen format 
+      result = SDL_ConvertSurface( image, scrMain->format, SDL_SWSURFACE ); 
+      if( result == NULL ) { 
+        printf( "Unable to optimize image %s! SDL Error: %s\n", file, SDL_GetError() );         
+        result = image;
+      } else {
+        SDL_FreeSurface( image ); 
+      }
+  } 
+  return result;    
 }
 
 SDL_Surface *render_load_image(char *file) 
 {
-    return (SDL_Surface*) render_exec_on_thread(render_load_image_internal,file,1);
+  return (SDL_Surface*) render_exec_on_thread(render_load_image_internal,file,1);
 }
 
 static void *render_free_surface_internal(SDL_Surface *surface) {
@@ -754,16 +800,15 @@ void render_free_surface(SDL_Surface *surface) {
   render_exec_on_thread(render_free_surface_internal,surface,1);
 }
 
-int render_draw(ui_element *element) {
-  
+int render_draw(ui_element *element)
+{
   switch(element->type) {
     case UI_BUTTON: 
-      render_draw_button(element);
-      break;
+      return render_draw_button(element);
     case UI_LISTVIEW:      
-      render_draw_listview(element);
-      break;
+      return render_draw_listview(element);
     default:
       log_error("render_draw(): Don't know how to draw %d",element->type);
+      return 0;
   }
 }

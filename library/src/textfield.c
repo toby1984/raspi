@@ -3,7 +3,8 @@
 
 int textfield_render_internal(ui_element *tf) 
 {
-  
+  // TODO: Implement me!
+  return 0;
 }
 
 /**
@@ -11,7 +12,8 @@ int textfield_render_internal(ui_element *tf)
  */
 int textfield_render(ui_element *tf) 
 {
-  return render_exec_on_thread(textfield_render_internal,tf,1);
+  // TODO: Implement me!
+  return (int) render_exec_on_thread(textfield_render_internal,tf,1);
 }
 
 /**
@@ -19,7 +21,8 @@ int textfield_render(ui_element *tf)
  * 
  */
 int textfield_insert_character(ui_element *tf,char c,int position) {
-  
+  // TODO: Implement me!
+  return 0;  
 }
 
 /**
@@ -28,5 +31,6 @@ int textfield_insert_character(ui_element *tf,char c,int position) {
  * @param position position to delete character at. 
  */
 int textfield_delete_character(ui_element *tf,int position) {
-  
+  // TODO: Implement me!
+  return 0;
 }

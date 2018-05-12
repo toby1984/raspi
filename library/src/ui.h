@@ -6,6 +6,8 @@
 
 #define LISTVIEW_CLICK_MAXDELTA_Y 3
 
+#define LISTVIEW_ITEM_HEIGHT 20
+
 /**
  * Adds a new button that displays a text label.
  * @param text button text

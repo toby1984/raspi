@@ -6,7 +6,7 @@
 
 static int mouseButtonPressed = 0;
 
-static volatile InputHandler *inputHandler = NULL;
+static volatile InputHandler inputHandler = NULL;
 
 static volatile struct timeval lastTouchEvent={0,0};
 

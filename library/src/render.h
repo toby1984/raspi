@@ -16,8 +16,6 @@
 
 #define FONT_SIZE 16
 
-#define LISTVIEW_ITEM_HEIGHT 20
-
 extern SDL_Surface* scrMain;
 
 typedef struct viewport_desc {
@@ -44,7 +42,11 @@ int render_has_error(void);
 
 volatile const char* render_get_error(void);
 
-int render_draw(ui_element *button);
+ui_element *render_allocate_element(UIElementType type);
+
+void render_free_element(ui_element *element);
+
+int render_draw(ui_element *element);
 
 SDL_Surface *render_load_image(char *file);
 
